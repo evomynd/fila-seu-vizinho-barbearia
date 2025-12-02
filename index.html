@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1A1A1A">
+    <meta name="description" content="Sistema de fila de espera para Seu Vizinho Cabeleireiro">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <title>Seu Vizinho - Fila de Espera</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Tela de Login -->
+    <div id="loginScreen" class="screen active">
+        <div class="login-container">
+            <div class="logo">
+                <h1>💈 Seu Vizinho</h1>
+                <p>Sistema de Fila de Espera</p>
+            </div>
+            
+            <div class="login-box">
+                <button id="googleLoginBtn" class="btn btn-google">
+                    <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg"><path d="M9 3.48c1.69 0 2.83.73 3.48 1.34l2.54-2.48C13.46.89 11.43 0 9 0 5.48 0 2.44 2.02.96 4.96l2.91 2.26C4.6 5.05 6.62 3.48 9 3.48z" fill="#EA4335"/><path d="M17.64 9.2c0-.74-.06-1.28-.19-1.84H9v3.34h4.96c-.1.83-.64 2.08-1.84 2.92l2.84 2.2c1.7-1.57 2.68-3.88 2.68-6.62z" fill="#4285F4"/><path d="M3.88 10.78A5.54 5.54 0 0 1 3.58 9c0-.62.11-1.22.29-1.78L.96 4.96A9.008 9.008 0 0 0 0 9c0 1.45.35 2.82.96 4.04l2.92-2.26z" fill="#FBBC05"/><path d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.84-2.2c-.76.53-1.78.88-3.12.88-2.38 0-4.4-1.57-5.12-3.74L.97 13.04C2.45 15.98 5.48 18 9 18z" fill="#34A853"/></svg>
+                    Entrar com Google
+                </button>
+                
+                <div class="divider">
+                    <span>ou</span>
+                </div>
+                
+                <form id="emailLoginForm">
+                    <input type="email" id="email" placeholder="Email" required>
+                    <input type="password" id="password" placeholder="Senha" required>
+                    <button type="submit" class="btn btn-primary">Entrar</button>
+                </form>
+                
+                <p class="switch-auth">
+                    Não tem conta? <a href="#" id="showRegister">Criar conta</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tela Principal (Cliente) -->
+    <div id="mainScreen" class="screen">
+        <header>
+            <div class="header-content">
+                <h2>💈 Seu Vizinho</h2>
+                <div class="header-actions">
+                    <button id="adminMenuBtn" class="btn-icon" title="Admin">⚙️</button>
+                    <button id="logoutBtn" class="btn-icon" title="Sair">🚪</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="welcome">
+                <h3>Escolha seu cabeleireiro</h3>
+                <p>Selecione o profissional para ver a disponibilidade</p>
+            </div>
+
+            <div id="barberButtons" class="barber-grid">
+                <!-- Botões dos cabeleireiros serão inseridos aqui -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Tela de Calendário -->
+    <div id="calendarScreen" class="screen">
+        <header>
+            <div class="header-content">
+                <button id="backToMainBtn" class="btn-icon">←</button>
+                <h2 id="selectedBarberName">Cabeleireiro</h2>
+                <button id="logoutBtn2" class="btn-icon">🚪</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div id="calendar" class="calendar-container">
+                <div class="calendar-header">
+                    <button id="prevMonth" class="btn-icon">←</button>
+                    <h3 id="currentMonth">Mês</h3>
+                    <button id="nextMonth" class="btn-icon">→</button>
+                </div>
+                <div class="calendar-weekdays">
+                    <div>Dom</div>
+                    <div>Seg</div>
+                    <div>Ter</div>
+                    <div>Qua</div>
+                    <div>Qui</div>
+                    <div>Sex</div>
+                    <div>Sáb</div>
+                </div>
+                <div id="calendarDays" class="calendar-days">
+                    <!-- Dias do calendário -->
+                </div>
+            </div>
+
+            <div id="queueInfo" class="queue-info hidden">
+                <h3>Fila para <span id="selectedDate"></span></h3>
+                <p class="queue-count">🕐 <span id="queuePosition">0</span> pessoa(s) na fila</p>
+                <p class="queue-message">Você será o <strong id="yourPosition">1º</strong> da fila</p>
+                
+                <div class="action-buttons">
+                    <button id="joinQueueBtn" class="btn btn-success">Entrar na Fila</button>
+                    <button id="changeDateBtn" class="btn btn-info">Ver Outra Data</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal de Fila (Contador) -->
+    <div id="queueModal" class="modal">
+        <div class="modal-content">
+            <h2>Sua Posição na Fila</h2>
+            <div class="queue-counter">
+                <svg class="progress-ring" width="200" height="200">
+                    <circle class="progress-ring-circle" stroke="#e5e7eb" stroke-width="10" fill="transparent" r="85" cx="100" cy="100"/>
+                    <circle id="progressCircle" class="progress-ring-circle progress" stroke="#8B5CF6" stroke-width="10" fill="transparent" r="85" cx="100" cy="100"/>
+                </svg>
+                <div class="counter-number">
+                    <span id="counterValue">5</span>
+                    <p>pessoas na sua frente</p>
+                </div>
+            </div>
+            <button id="closeQueueModal" class="btn btn-secondary">Fechar</button>
+        </div>
+    </div>
+
+    <!-- Painel Admin -->
+    <div id="adminScreen" class="screen">
+        <header>
+            <div class="header-content">
+                <button id="backFromAdminBtn" class="btn-icon">←</button>
+                <h2>Painel Administrativo</h2>
+                <button id="logoutBtn3" class="btn-icon">🚪</button>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="admin-tabs">
+                <button class="tab-btn active" data-tab="barbers">Cabeleireiros</button>
+                <button class="tab-btn" data-tab="schedule">Disponibilidade</button>
+            </div>
+
+            <!-- Tab Cabeleireiros -->
+            <div id="barbersTab" class="tab-content active">
+                <h3>Gerenciar Cabeleireiros</h3>
+                <form id="addBarberForm" class="admin-form">
+                    <input type="text" id="barberName" placeholder="Nome do cabeleireiro" required>
+                    <button type="submit" class="btn btn-primary">Adicionar</button>
+                </form>
+                <div id="barbersList" class="items-list">
+                    <!-- Lista de cabeleireiros -->
+                </div>
+            </div>
+
+            <!-- Tab Disponibilidade -->
+            <div id="scheduleTab" class="tab-content">
+                <h3>Gerenciar Disponibilidade</h3>
+                <div id="availabilityManager">
+                    <select id="barberSelect" class="select-input">
+                        <option value="">Selecione um cabeleireiro</option>
+                    </select>
+                    
+                    <div class="weekdays-selector">
+                        <label><input type="checkbox" value="0"> Domingo</label>
+                        <label><input type="checkbox" value="1"> Segunda</label>
+                        <label><input type="checkbox" value="2"> Terça</label>
+                        <label><input type="checkbox" value="3"> Quarta</label>
+                        <label><input type="checkbox" value="4"> Quinta</label>
+                        <label><input type="checkbox" value="5"> Sexta</label>
+                        <label><input type="checkbox" value="6"> Sábado</label>
+                    </div>
+                    
+                    <button id="saveAvailabilityBtn" class="btn btn-primary">Salvar Disponibilidade</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="spinner hidden">
+        <div class="spinner-border"></div>
+    </div>
+
+    <!-- Firebase SDKs (v9 - Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <!-- App Scripts -->
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
