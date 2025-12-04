@@ -1,0 +1,23 @@
+{
+  "name": "Seu Vizinho - Fila",
+  "short_name": "Vizinho Fila",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#cdc8c0",
+  "theme_color": "#151b29",
+  "description": "App de fila de espera da barbearia Seu Vizinho.",
+  "icons": [
+    {
+      "src": "https://github.com/evomynd/fila-seu-vizinho-barbearia/blob/main/icons/icon-192x192.png?raw=true",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://github.com/evomynd/fila-seu-vizinho-barbearia/blob/main/icons/icon-512x512.png?raw=true",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ]
+}

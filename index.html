@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seu Vizinho - Fila</title>
+  <meta name="application-name" content="Seu Vizinho">
+  <meta name="apple-mobile-web-app-title" content="Seu Vizinho">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#151b29">
+  <link rel="manifest" href="./manifest-vizinho.json">
+  <link rel="icon" type="image/png" href="https://github.com/evomynd/fila-seu-vizinho-barbearia/blob/main/icons/icon-512x512.png?raw=true">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; background-color: #cdc8c0; }
+    .zele-primary { background-color: #151b29; }
+    .zele-btn { background-color: #151b29; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #e5e5e5; transition: all .2s ease; }
+    .zele-btn:hover { background-color: #1f2937; transform: translateY(-2px); }
+    .card { background: white; border: 2px solid #e5e5e5; box-shadow: 0 8px 16px rgba(0,0,0,0.15); }
+    .modal-overlay { display:none; position:fixed; inset:0; background-color: rgba(0,0,0,.5); z-index: 9999; align-items:center; justify-content:center; }
+    .modal-overlay.show { display:flex; }
+  </style>
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+    import { getFirestore, doc, setDoc, getDoc, collection, addDoc, onSnapshot, query, where, orderBy, updateDoc } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCyTJVlgvkLa2-SUNaxAlOiTezcXfjiP64",
+      authDomain: "seu-vizinho-barbearia.firebaseapp.com",
+      projectId: "seu-vizinho-barbearia",
+      storageBucket: "seu-vizinho-barbearia.firebasestorage.app",
+      messagingSenderId: "25346983688",
+      appId: "1:25346983688:web:727308786e34874ae50ebd"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    let currentUser = null;
+    let selectedBarber = null;
+    let selectedDate = null;
+    let selectedTime = null;
+
+    const els = {
+      loading: document.getElementById('loading-screen'),
+      login: document.getElementById('auth-screen'),
+      app: document.getElementById('app-container'),
+      googleBtn: document.getElementById('google-login-btn'),
+      showEmailBtn: document.getElementById('show-email-login'),
+      emailModal: document.getElementById('email-login-modal'),
+      closeEmailModal: document.getElementById('close-email-modal'),
+      userName: document.getElementById('user-name'),
+      userEmail: document.getElementById('user-email'),
+      userPhoto: document.getElementById('user-photo'),
+      barberBtns: document.querySelectorAll('.barber-btn'),
+      dateInput: document.getElementById('date-input'),
+      timeInput: document.getElementById('time-input'),
+      queueInfo: document.getElementById('queue-info'),
+      joinQueueBtn: document.getElementById('join-queue-btn'),
+      otherDateBtn: document.getElementById('other-date-btn'),
+      ringModal: document.getElementById('ring-modal'),
+      ringNumber: document.getElementById('ring-number'),
+      menuBtn: document.getElementById('menu-btn'),
+      menuOverlay: document.getElementById('menu-overlay'),
+      menuDrawer: document.getElementById('menu-drawer'),
+      menuCloseBtn: document.getElementById('menu-close-btn'),
+      adminBtn: document.getElementById('menu-admin-btn'),
+      adminPage: document.getElementById('admin-page'),
+      backFromAdmin: document.getElementById('back-from-admin'),
+      adminBarberList: document.getElementById('admin-barber-list'),
+      adminAddBarberBtn: document.getElementById('admin-add-barber-btn'),
+      adminBarberName: document.getElementById('admin-barber-name')
+    };
+
+    function showLoading() { els.loading.style.display = 'flex'; els.login.classList.add('hidden'); els.app.classList.add('hidden'); }
+    function showLogin() { els.loading.style.display = 'none'; els.login.classList.remove('hidden'); els.app.classList.add('hidden'); }
+    function showApp() { els.loading.style.display = 'none'; els.login.classList.add('hidden'); els.app.classList.remove('hidden'); }
+
+    els.googleBtn?.addEventListener('click', async () => {
+      try { showLoading(); const res = await signInWithPopup(auth, provider); currentUser = res.user; await ensureUserDoc(currentUser); } catch(e){ console.error(e); showLogin(); }
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) { currentUser = user; await ensureUserDoc(user); updateUserUI(user); showApp(); } else { showLogin(); }
+    });
+
+    async function ensureUserDoc(user){
+      const ref = doc(db, 'users', user.uid);
+      const snap = await getDoc(ref);
+      const base = { email: user.email, displayName: user.displayName || user.email.split('@')[0], role: 'user', createdAt: new Date().toISOString() };
+      if (!snap.exists()) await setDoc(ref, base);
+      else await setDoc(ref, { lastLogin: new Date().toISOString() }, { merge: true });
+    }
+
+    function updateUserUI(user){
+      const defaultPhoto = 'https://github.com/evomynd/fila-seu-vizinho-barbearia/blob/main/icons/icon-512x512.png?raw=true';
+      els.userName.textContent = user.displayName || 'Usuário';
+      els.userEmail.textContent = user.email;
+      els.userPhoto.src = user.photoURL || defaultPhoto;
+    }
+
+    function openMenu(){ els.menuOverlay.classList.add('show'); els.menuDrawer.classList.add('show'); }
+    function closeMenu(){ els.menuOverlay.classList.remove('show'); els.menuDrawer.classList.remove('show'); }
+    els.menuBtn?.addEventListener('click', openMenu);
+    els.menuCloseBtn?.addEventListener('click', closeMenu);
+    els.menuOverlay?.addEventListener('click', closeMenu);
+
+    els.adminBtn?.addEventListener('click', () => { closeMenu(); els.app.classList.add('hidden'); els.adminPage.classList.remove('hidden'); loadAdminBarbers(); });
+    els.backFromAdmin?.addEventListener('click', () => { els.adminPage.classList.add('hidden'); els.app.classList.remove('hidden'); });
+
+    async function loadAdminBarbers(){
+      els.adminBarberList.innerHTML = '';
+      const qRef = query(collection(db, 'barbers'), orderBy('name'));
+      onSnapshot(qRef, (snap) => {
+        els.adminBarberList.innerHTML = '';
+        snap.forEach(docu => {
+          const d = docu.data();
+          const li = document.createElement('div');
+          li.className = 'flex items-center justify-between p-3 border rounded-lg';
+          li.innerHTML = `<span class="font-semibold">${d.name}</span>`;
+          els.adminBarberList.appendChild(li);
+        });
+      });
+    }
+
+    els.adminAddBarberBtn?.addEventListener('click', async () => {
+      const name = els.adminBarberName.value.trim();
+      if (!name) return;
+      await addDoc(collection(db, 'barbers'), { name, createdAt: new Date().toISOString() });
+      els.adminBarberName.value = '';
+    });
+
+    els.barberBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        els.barberBtns.forEach(b => b.classList.remove('ring-4'));
+        btn.classList.add('ring-4');
+        selectedBarber = btn.dataset.barberId;
+        updateQueuePreview();
+      });
+    });
+
+    els.dateInput?.addEventListener('change', (e) => { selectedDate = e.target.value; updateQueuePreview(); });
+    els.timeInput?.addEventListener('change', (e) => { selectedTime = e.target.value; updateQueuePreview(); });
+
+    async function updateQueuePreview(){
+      if (!selectedBarber || !selectedDate || !selectedTime){ els.queueInfo.textContent = 'Escolha barbeiro, data e horário.'; els.joinQueueBtn.disabled = true; return; }
+      const qRef = query(collection(db, 'queues'), where('barberId','==', selectedBarber), where('date','==', selectedDate), where('time','==', selectedTime));
+      const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+      const docs = await getDocs(qRef);
+      const count = docs.size;
+      els.queueInfo.textContent = count === 0 ? 'Sem fila. Você será o primeiro.' : `Fila atual: ${count} pessoa(s). Sua posição será ${count+1}.`;
+      els.joinQueueBtn.disabled = false;
+    }
+
+    els.joinQueueBtn?.addEventListener('click', async () => {
+      if (!currentUser || !selectedBarber || !selectedDate || !selectedTime) return;
+      const entry = { userId: currentUser.uid, userName: currentUser.displayName || currentUser.email, barberId: selectedBarber, date: selectedDate, time: selectedTime, createdAt: new Date().toISOString() };
+      const ref = await addDoc(collection(db, 'queues'), entry);
+      await showRingModal(selectedBarber, selectedDate, selectedTime, ref.id);
+    });
+
+    async function showRingModal(barberId, date, time, myId){
+      const qRef = query(collection(db, 'queues'), where('barberId','==', barberId), where('date','==', date), where('time','==', time), orderBy('createdAt'));
+      onSnapshot(qRef, (snap) => {
+        const ids = [];
+        snap.forEach(d => ids.push(d.id));
+        const myPos = Math.max(1, ids.indexOf(myId) + 1);
+        const ahead = Math.max(0, myPos - 1);
+        els.ringNumber.textContent = ahead;
+        els.ringModal.classList.add('show');
+      });
+    }
+
+    els.otherDateBtn?.addEventListener('click', () => { els.ringModal.classList.remove('show'); });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then(reg => console.log('Service Worker registrado:', reg.scope))
+          .catch(err => console.error('Falha ao registrar SW:', err));
+      });
+    }
+  </script>
+</head>
+<body>
+  <div id="loading-screen" class="fixed inset-0 zele-primary flex items-center justify-center z-50">
+    <div class="text-center text-white">
+      <h1 class="text-4xl font-bold mb-2">Seu Vizinho</h1>
+      <p class="opacity-80">Fila de Espera</p>
+      <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-white mx-auto mt-6"></div>
+    </div>
+  </div>
+
+  <div id="auth-screen" class="fixed inset-0 zele-primary flex items-center justify-center p-4 hidden">
+    <div class="card rounded-2xl p-8 max-w-md w-full text-center">
+      <h1 class="text-3xl font-bold mb-2" style="color:#151b29">Seu Vizinho</h1>
+      <p class="text-gray-600 mb-6">Fila de Espera</p>
+      <button id="google-login-btn" class="w-full zele-btn font-bold py-3 px-6 rounded-lg mb-3">Entrar com Google</button>
+      <button id="show-email-login" class="text-sm text-gray-600 hover:text-gray-800 underline">Entrar com email</button>
+    </div>
+  </div>
+
+  <div id="email-login-modal" class="modal-overlay">
+    <div class="card rounded-2xl p-6 max-w-md w-full mx-4">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold" style="color:#151b29">Login</h2>
+        <button id="close-email-modal" class="text-gray-600">✕</button>
+      </div>
+      <p class="text-sm text-gray-600">Use Google no início. Email/senha será adicionado na próxima etapa.</p>
+      <button class="w-full zele-btn font-bold py-3 px-6 rounded-lg mt-3" onclick="document.getElementById('email-login-modal').classList.remove('show')">OK</button>
+    </div>
+  </div>
+
+  <div id="app-container" class="hidden">
+    <header class="zele-primary text-white">
+      <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <h1 class="text-2xl font-bold">Seu Vizinho</h1>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="text-right hidden sm:block">
+            <p id="user-name" class="text-sm font-semibold">Usuário</p>
+            <p id="user-email" class="text-xs opacity-90">email@example.com</p>
+          </div>
+          <img id="user-photo" src="" alt="Foto" class="w-10 h-10 rounded-full border-2 border-white">
+          <button id="menu-btn" class="zele-btn p-2 rounded-lg">☰</button>
+        </div>
+      </div>
+    </header>
+
+    <div id="menu-overlay" class="modal-overlay"></div>
+    <div id="menu-drawer" class="fixed top-0 right-[-300px] w-[300px] h-full bg-white shadow-xl z-[9999] transition-all">
+      <div class="p-6">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-xl font-bold" style="color:#151b29">Menu</h2>
+          <button id="menu-close-btn" class="text-gray-600">✕</button>
+        </div>
+        <div class="space-y-2">
+          <button id="menu-admin-btn" class="w-full p-3 border rounded-lg text-left hover:bg-gray-50">⚙️ Administração</button>
+        </div>
+      </div>
+    </div>
+
+    <main class="container mx-auto px-4 py-8 max-w-3xl">
+      <div class="card rounded-xl p-6 mb-6">
+        <h2 class="text-2xl font-bold mb-4" style="color:#151b29">Escolha o barbeiro</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button class="barber-btn zele-btn rounded-lg py-6 text-lg font-bold" data-barber-id="barber1">Barbeiro 1</button>
+          <button class="barber-btn zele-btn rounded-lg py-6 text-lg font-bold" data-barber-id="barber2">Barbeiro 2</button>
+          <button class="barber-btn zele-btn rounded-lg py-6 text-lg font-bold" data-barber-id="barber3">Barbeiro 3</button>
+        </div>
+      </div>
+
+      <div class="card rounded-xl p-6 mb-6">
+        <h2 class="text-2xl font-bold mb-4" style="color:#151b29">Data e Horário</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-semibold mb-1" style="color:#151b29">Data</label>
+            <input id="date-input" type="date" class="w-full border border-gray-300 rounded-lg px-4 py-3">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold mb-1" style="color:#151b29">Horário</label>
+            <input id="time-input" type="time" class="w-full border border-gray-300 rounded-lg px-4 py-3">
+          </div>
+        </div>
+        <p id="queue-info" class="text-sm text-gray-600 mt-3">Escolha barbeiro, data e horário.</p>
+        <div class="flex gap-3 mt-4">
+          <button id="join-queue-btn" class="flex-1 zele-btn font-bold py-3 px-6 rounded-lg" disabled>Entrar na fila</button>
+          <button id="other-date-btn" class="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg">Ver outra data</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="ring-modal" class="modal-overlay">
+    <div class="card rounded-2xl p-6 max-w-sm w-full mx-4 text-center">
+      <h3 class="text-xl font-bold mb-4" style="color:#151b29">Sua posição</h3>
+      <div class="mx-auto w-40 h-40 rounded-full border-[10px] border-blue-600 flex items-center justify-center">
+        <span id="ring-number" class="text-5xl font-bold">0</span>
+      </div>
+      <p class="text-sm text-gray-600 mt-4">Número de pessoas à sua frente</p>
+      <button class="w-full zele-btn font-bold py-3 px-6 rounded-lg mt-6" onclick="document.getElementById('ring-modal').classList.remove('show')">Fechar</button>
+    </div>
+  </div>
+
+  <div id="admin-page" class="hidden">
+    <header class="zele-primary text-white">
+      <div class="container mx-auto px-4 py-4 flex items-center gap-3">
+        <button id="back-from-admin" class="zele-btn p-2 rounded-lg">←</button>
+        <h1 class="text-2xl font-bold">Admin: Barbeiros</h1>
+      </div>
+    </header>
+    <main class="container mx-auto px-4 py-8 max-w-3xl">
+      <div class="card rounded-xl p-6">
+        <h2 class="text-xl font-bold mb-4" style="color:#151b29">Gerenciar Barbeiros</h2>
+        <div class="flex gap-2 mb-4">
+          <input id="admin-barber-name" type="text" class="flex-1 border border-gray-300 rounded-lg px-3 py-2" placeholder="Nome do barbeiro">
+          <button id="admin-add-barber-btn" class="zele-btn px-4 py-2 rounded-lg font-semibold">Adicionar</button>
+        </div>
+        <div id="admin-barber-list" class="space-y-2"></div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
