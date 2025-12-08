@@ -287,6 +287,41 @@
           showCheckinPage();
         });
         menuContainer.appendChild(checkinBtn);
+
+        // Adicionar separador
+        const separator = document.createElement('div');
+        separator.className = 'border-t my-2';
+        menuContainer.appendChild(separator);
+
+        // Botão de logout
+        const logoutBtn = document.createElement('button');
+        logoutBtn.id = 'menu-logout-btn';
+        logoutBtn.className = 'w-full p-3 border border-red-300 rounded-lg text-left hover:bg-red-50 text-red-600 font-semibold';
+        logoutBtn.textContent = '🚪 Sair';
+        logoutBtn.addEventListener('click', async () => {
+          closeMenu();
+          try {
+            await signOut(auth);
+            currentUser = null;
+            selectedBarber = null;
+            selectedDate = null;
+            selectedTime = null;
+            currentQueueId = null;
+            if (queueListener) {
+              queueListener();
+              queueListener = null;
+            }
+            if (checkinListener) {
+              checkinListener();
+              checkinListener = null;
+            }
+            showLogin();
+          } catch(e) {
+            console.error('Erro ao fazer logout:', e);
+            alert('Erro ao sair. Tente novamente.');
+          }
+        });
+        menuContainer.appendChild(logoutBtn);
       }
     });
 
@@ -656,10 +691,10 @@
       const checkinList = document.getElementById('checkin-list');
       const today = getTodayInSaoPaulo();
 
+      // Query simples sem índice composto
       const qRef = query(
         collection(db, 'queues'),
         where('date', '==', today),
-        orderBy('time'),
         orderBy('createdAt')
       );
 
@@ -673,8 +708,24 @@
           return;
         }
 
-        snap.forEach((docu, index) => {
-          const d = docu.data();
+        // Ordena em memória por time depois por createdAt
+        const allDocs = [];
+        snap.forEach((docu) => {
+          allDocs.push({ docu, data: docu.data() });
+        });
+
+        allDocs.sort((a, b) => {
+          const timeA = a.data.time || '';
+          const timeB = b.data.time || '';
+          if (timeA !== timeB) {
+            return timeA.localeCompare(timeB);
+          }
+          return new Date(a.data.createdAt) - new Date(b.data.createdAt);
+        });
+
+        allDocs.forEach((item, index) => {
+          const docu = item.docu;
+          const d = item.data;
           const card = document.createElement('div');
           card.className = 'card p-4 rounded-lg relative overflow-hidden';
           card.style.touchAction = 'pan-y';
@@ -755,6 +806,9 @@
 
           checkinList.appendChild(card);
         });
+      }, (error) => {
+        console.error('Erro ao carregar fila de check-in:', error);
+        checkinList.innerHTML = '<p class="text-center text-red-600">⚠️ Erro ao carregar fila.</p>';
       });
     }
 
