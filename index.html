@@ -669,6 +669,9 @@
 
       const timesGrid = document.getElementById('queue-times-grid');
       timesGrid.innerHTML = '';
+      // Garantir que o grid tenha altura
+      timesGrid.style.minHeight = 'calc(100vh - 200px)';
+      timesGrid.style.width = '100%';
 
       const today = getTodayInSaoPaulo();
       
