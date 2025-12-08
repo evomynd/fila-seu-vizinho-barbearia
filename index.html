@@ -813,10 +813,9 @@
         currentQueueId = ref.id;
 
         // Armazena info da fila atual
-        const barberBtn = document.querySelector(`.barber-btn[data-barber-id="${selectedBarber}"]`);
         currentQueueInfo = {
           barberId: selectedBarber,
-          barberName: barberBtn?.textContent || selectedBarber,
+          barberName: selectedBarberName || selectedBarber,
           date: selectedDate,
           time: selectedTime,
           queueId: ref.id
