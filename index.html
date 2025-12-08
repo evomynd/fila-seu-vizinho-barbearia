@@ -61,6 +61,7 @@
     let currentUser = null;
     let userRole = null; // 'owner', 'barber', 'customer'
     let selectedBarber = null;
+    let selectedBarberName = null; // nome do barbeiro selecionado
     let selectedDate = null;
     let selectedTime = null;
     let editingBarberId = null;
@@ -643,6 +644,7 @@
           btn.textContent = d.name;
           btn.addEventListener('click', () => {
             selectedBarber = docu.id;
+            selectedBarberName = d.name; // Armazenar o nome do barbeiro
             currentBarberAvailability = d.availability || null;
             showQueueTimes();
           });
@@ -713,6 +715,7 @@
         `;
 
         card.addEventListener('click', () => {
+          console.log('Card clicado:', { timeStr, today, count });
           selectedTime = timeStr;
           selectedDate = today;
           showConfirmQueue(count + 1, count);
@@ -729,15 +732,26 @@
     // Mostrar modal de confirmação
     function showConfirmQueue(position, currentCount) {
       const confirmModal = document.getElementById('confirm-queue-modal');
-      const barberBtn = document.querySelector(`.barber-btn[data-barber-id="${selectedBarber}"]`);
-      const barberName = barberBtn?.textContent || selectedBarber;
+      const barberName = selectedBarberName || selectedBarber;
       
-      document.getElementById('confirm-barber-name').textContent = barberName;
-      document.getElementById('confirm-time').textContent = `${selectedTime} - ${String(parseInt(selectedTime) + 1).padStart(2, '0')}:00`;
-      document.getElementById('confirm-queue-count').textContent = currentCount;
-      document.getElementById('confirm-position').textContent = `${position}º será sua posição na fila`;
+      console.log('showConfirmQueue chamada:', { position, currentCount, selectedBarber, barberName });
+      
+      const confirmBarberNameEl = document.getElementById('confirm-barber-name');
+      const confirmTimeEl = document.getElementById('confirm-time');
+      const confirmQueueCountEl = document.getElementById('confirm-queue-count');
+      const confirmPositionEl = document.getElementById('confirm-position');
+      
+      if (confirmBarberNameEl) confirmBarberNameEl.textContent = barberName;
+      if (confirmTimeEl) confirmTimeEl.textContent = `${selectedTime} - ${String(parseInt(selectedTime) + 1).padStart(2, '0')}:00`;
+      if (confirmQueueCountEl) confirmQueueCountEl.textContent = currentCount;
+      if (confirmPositionEl) confirmPositionEl.textContent = `${position}º será sua posição na fila`;
 
-      confirmModal.classList.add('show');
+      if (confirmModal) {
+        confirmModal.classList.add('show');
+        console.log('Modal de confirmação exibido');
+      } else {
+        console.error('Modal de confirmação não encontrado');
+      }
     }
 
     // Voltar aos barbeiros
@@ -772,8 +786,7 @@
         if (!userQueueSnap.empty) {
           // Usuário já está em uma fila
           const existingQueue = userQueueSnap.docs[0].data();
-          const barberBtn = document.querySelector(`.barber-btn[data-barber-id="${selectedBarber}"]`);
-          const newBarberName = barberBtn?.textContent || selectedBarber;
+          const newBarberName = selectedBarberName || selectedBarber;
           const oldBarberName = existingQueue.barberId; // TODO: buscar nome real do barbeiro antigo
           
           const confirmSwitch = confirm(
