@@ -18,10 +18,22 @@
     .zele-btn { background-color: #151b29; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #e5e5e5; transition: all .2s ease; }
     .zele-btn:hover { background-color: #1f2937; transform: translateY(-2px); }
     .card { background: white; border: 2px solid #e5e5e5; box-shadow: 0 8px 16px rgba(0,0,0,0.15); }
-    .modal-overlay { display:none; position:fixed; inset:0; background-color: rgba(0,0,0,.5); z-index: 9999; align-items:center; justify-content:center; }
+    .modal-overlay { display:none; position:fixed; inset:0; background-color: rgba(0,0,0,.5); z-index: 9998; align-items:center; justify-content:center; }
     .modal-overlay.show { display:flex; }
-    #menu-drawer { transition: right 0.3s ease-in-out; }
-    #menu-drawer.show { right: 0 !important; }
+    #menu-drawer { 
+      position: fixed;
+      top: 0;
+      right: -300px;
+      width: 300px;
+      height: 100%;
+      background: white;
+      box-shadow: -4px 0 16px rgba(0,0,0,0.2);
+      z-index: 9999;
+      transition: right 0.3s ease-in-out;
+    }
+    #menu-drawer.show { 
+      right: 0;
+    }
   </style>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -714,7 +726,7 @@
     </header>
 
     <div id="menu-overlay" class="modal-overlay"></div>
-    <div id="menu-drawer" class="fixed top-0 right-[-300px] w-[300px] h-full bg-white shadow-xl z-[9999] transition-all">
+    <div id="menu-drawer">
       <div class="p-6">
         <div class="flex items-center justify-between mb-6">
           <h2 class="text-xl font-bold" style="color:#151b29">Menu</h2>
