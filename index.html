@@ -34,6 +34,9 @@
     #menu-drawer.show { 
       right: 0;
     }
+    #checkin-page .card > div:first-child {
+      transition: transform 0.2s ease-out;
+    }
   </style>
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
@@ -274,6 +277,16 @@
           showAdminQueueModal();
         });
         menuContainer.appendChild(adminQueueBtn);
+
+        const checkinBtn = document.createElement('button');
+        checkinBtn.id = 'menu-checkin-btn';
+        checkinBtn.className = 'w-full p-3 border rounded-lg text-left hover:bg-gray-50';
+        checkinBtn.textContent = '✓ Check-in';
+        checkinBtn.addEventListener('click', () => {
+          closeMenu();
+          showCheckinPage();
+        });
+        menuContainer.appendChild(checkinBtn);
       }
     });
 
@@ -422,13 +435,10 @@
           btn.className = 'barber-btn zele-btn rounded-lg py-6 text-lg font-bold';
           btn.dataset.barberId = docu.id;
           btn.textContent = d.name;
-          btn.addEventListener('click', async () => {
-            document.querySelectorAll('.barber-btn').forEach(b => b.classList.remove('ring-4'));
-            btn.classList.add('ring-4');
+          btn.addEventListener('click', () => {
             selectedBarber = docu.id;
             currentBarberAvailability = d.availability || null;
-            validateAndUpdateDateInput();
-            updateQueuePreview();
+            showQueueTimes();
           });
           barberContainer.appendChild(btn);
         });
@@ -438,147 +448,127 @@
       });
     }
 
-    function validateAndUpdateDateInput() {
-      const allowedDates = getAllowedDates();
-      const today = allowedDates[0];
-      const tomorrow = allowedDates[1];
+    // Função para mostrar cards de horários
+    async function showQueueTimes() {
+      const barberContainer = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-3');
+      const timesContainer = document.getElementById('queue-times-container');
       
-      els.dateInput.disabled = false;
-      els.dateInput.min = today;
-      els.dateInput.max = tomorrow;
-      
-      if (selectedDate) {
-        // Verifica se a data está dentro dos dias permitidos (hoje ou amanhã)
-        if (!allowedDates.includes(selectedDate)) {
-          els.queueInfo.textContent = 'Apenas hoje e amanhã são permitidos.';
-          els.joinQueueBtn.disabled = true;
-          selectedDate = null;
-          els.dateInput.value = '';
-          return;
-        }
+      barberContainer.parentElement.classList.add('hidden');
+      timesContainer.classList.remove('hidden');
+
+      const timesGrid = document.getElementById('queue-times-grid');
+      timesGrid.innerHTML = '';
+
+      const today = getTodayInSaoPaulo();
+      if (!currentBarberAvailability || !currentBarberAvailability.days) return;
+
+      const dayOfWeek = new Date(today + 'T00:00:00').getDay().toString();
+      if (!currentBarberAvailability.days.includes(dayOfWeek)) {
+        timesGrid.innerHTML = '<p class="col-span-3 text-center text-gray-600">Este barbeiro não trabalha hoje.</p>';
+        return;
+      }
+
+      const startHour = parseInt(currentBarberAvailability.startTime.split(':')[0]);
+      const endHour = parseInt(currentBarberAvailability.endTime.split(':')[0]);
+      const now = new Date();
+      const currentHour = now.getHours();
+
+      for (let hour = startHour; hour < endHour; hour++) {
+        const timeStr = String(hour).padStart(2, '0') + ':00';
+        const nextHour = String(hour + 1).padStart(2, '0') + ':00';
         
-        // Verifica disponibilidade do barbeiro
-        if (currentBarberAvailability && currentBarberAvailability.days && currentBarberAvailability.days.length > 0) {
-          const dayOfWeek = new Date(selectedDate + 'T00:00:00').getDay().toString();
-          if (!currentBarberAvailability.days.includes(dayOfWeek)) {
-            els.queueInfo.textContent = 'Este barbeiro não trabalha neste dia. Escolha outra data.';
-            els.joinQueueBtn.disabled = true;
-            selectedDate = null;
-            els.dateInput.value = '';
-          }
-        }
+        // Não mostrar horários passados
+        if (hour < currentHour) continue;
+
+        const card = document.createElement('div');
+        card.className = 'card p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow';
+        card.style.borderLeft = '4px solid #151b29';
+        
+        const qRef = query(
+          collection(db, 'queues'),
+          where('barberId', '==', selectedBarber),
+          where('date', '==', today),
+          where('time', '==', timeStr)
+        );
+        
+        const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const docs = await getDocs(qRef);
+        const count = docs.size;
+
+        card.innerHTML = `
+          <div class="mb-3">
+            <p class="text-lg font-bold" style="color:#151b29">${timeStr} - ${nextHour}</p>
+            <p class="text-sm text-gray-600">${count} cliente${count !== 1 ? 's' : ''} na fila</p>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-2xl font-bold text-blue-600">#${count + 1}</span>
+            <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Sua posição</span>
+          </div>
+        `;
+
+        card.addEventListener('click', () => {
+          selectedTime = timeStr;
+          selectedDate = today;
+          showConfirmQueue(count + 1, count);
+        });
+
+        timesGrid.appendChild(card);
+      }
+
+      if (timesGrid.children.length === 0) {
+        timesGrid.innerHTML = '<p class="col-span-3 text-center text-gray-600">Nenhum horário disponível hoje.</p>';
       }
     }
 
-    function validateTime() {
-      if (!currentBarberAvailability || !selectedTime) return true;
-      const start = currentBarberAvailability.startTime || '09:00';
-      const end = currentBarberAvailability.endTime || '18:00';
-      return selectedTime >= start && selectedTime <= end;
+    // Mostrar modal de confirmação
+    function showConfirmQueue(position, currentCount) {
+      const confirmModal = document.getElementById('confirm-queue-modal');
+      const barberBtn = document.querySelector(`.barber-btn[data-barber-id="${selectedBarber}"]`);
+      const barberName = barberBtn?.textContent || selectedBarber;
+      
+      document.getElementById('confirm-barber-name').textContent = barberName;
+      document.getElementById('confirm-time').textContent = `${selectedTime} - ${String(parseInt(selectedTime) + 1).padStart(2, '0')}:00`;
+      document.getElementById('confirm-queue-count').textContent = currentCount;
+      document.getElementById('confirm-position').textContent = `${position}º`;
+
+      confirmModal.classList.add('show');
     }
 
-    els.barberBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        els.barberBtns.forEach(b => b.classList.remove('ring-4'));
-        btn.classList.add('ring-4');
-        selectedBarber = btn.dataset.barberId;
-        updateQueuePreview();
-      });
+    // Voltar aos barbeiros
+    document.getElementById('back-to-barbers')?.addEventListener('click', () => {
+      const barberContainer = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-3');
+      const timesContainer = document.getElementById('queue-times-container');
+      
+      timesContainer.classList.add('hidden');
+      barberContainer.parentElement.classList.remove('hidden');
     });
 
-    els.dateInput?.addEventListener('change', (e) => { 
-      selectedDate = e.target.value; 
-      
-      const allowedDates = getAllowedDates();
-      if (!allowedDates.includes(selectedDate)) {
-        els.queueInfo.textContent = 'Apenas hoje e amanhã são permitidos.';
-        els.joinQueueBtn.disabled = true;
-        return;
-      }
-      
-      if (currentBarberAvailability && currentBarberAvailability.days) {
-        const dayOfWeek = new Date(selectedDate + 'T00:00:00').getDay().toString();
-        if (!currentBarberAvailability.days.includes(dayOfWeek)) {
-          els.queueInfo.textContent = 'Este barbeiro não trabalha neste dia. Escolha outra data.';
-          els.joinQueueBtn.disabled = true;
-          return;
-        }
-      }
-      updateQueuePreview(); 
-    });
-    
-    els.timeInput?.addEventListener('change', (e) => { 
-      selectedTime = e.target.value; 
-      if (!validateTime()) {
-        const start = currentBarberAvailability.startTime || '09:00';
-        const end = currentBarberAvailability.endTime || '18:00';
-        els.queueInfo.textContent = `Este barbeiro trabalha de ${start} às ${end}. Escolha outro horário.`;
-        els.joinQueueBtn.disabled = true;
-        return;
-      }
-      updateQueuePreview(); 
+    // Cancelar entrada na fila
+    document.getElementById('cancel-queue-btn')?.addEventListener('click', () => {
+      document.getElementById('confirm-queue-modal').classList.remove('show');
     });
 
-    async function updateQueuePreview(){
-      if (!selectedBarber || !selectedDate || !selectedTime){ 
-        els.queueInfo.textContent = 'Escolha barbeiro, data e horário.'; 
-        els.joinQueueBtn.disabled = true; 
-        return; 
-      }
-      
-      const allowedDates = getAllowedDates();
-      if (!allowedDates.includes(selectedDate)) {
-        els.queueInfo.textContent = 'Apenas hoje e amanhã são permitidos.';
-        els.joinQueueBtn.disabled = true;
-        return;
-      }
-      
-      if (currentBarberAvailability && currentBarberAvailability.days) {
-        const dayOfWeek = new Date(selectedDate + 'T00:00:00').getDay().toString();
-        if (!currentBarberAvailability.days.includes(dayOfWeek)) {
-          els.queueInfo.textContent = 'Este barbeiro não trabalha neste dia.';
-          els.joinQueueBtn.disabled = true;
-          return;
-        }
-      }
-      
-      if (!validateTime()) {
-        const start = currentBarberAvailability.startTime || '09:00';
-        const end = currentBarberAvailability.endTime || '18:00';
-        els.queueInfo.textContent = `Horário inválido. Trabalha de ${start} às ${end}.`;
-        els.joinQueueBtn.disabled = true;
-        return;
-      }
-      
-      const qRef = query(collection(db, 'queues'), where('barberId','==', selectedBarber), where('date','==', selectedDate), where('time','==', selectedTime));
-      const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-      const docs = await getDocs(qRef);
-      const count = docs.size;
-      els.queueInfo.textContent = count === 0 ? 'Sem fila. Você será o primeiro.' : `Fila atual: ${count} pessoa(s). Sua posição será ${count+1}.`;
-      els.joinQueueBtn.disabled = false;
-    }
-
-    els.joinQueueBtn?.addEventListener('click', async () => {
+    // Confirmar entrada na fila
+    document.getElementById('confirm-queue-btn')?.addEventListener('click', async () => {
       if (!currentUser || !selectedBarber || !selectedDate || !selectedTime) return;
-      
+
       try {
-        els.joinQueueBtn.disabled = true;
-        els.joinQueueBtn.textContent = 'Entrando...';
-        
-        const entry = { userId: currentUser.uid, userName: currentUser.displayName || currentUser.email, barberId: selectedBarber, date: selectedDate, time: selectedTime, createdAt: new Date().toISOString() };
+        const entry = {
+          userId: currentUser.uid,
+          userName: currentUser.displayName || currentUser.email,
+          barberId: selectedBarber,
+          date: selectedDate,
+          time: selectedTime,
+          createdAt: new Date().toISOString()
+        };
         const ref = await addDoc(collection(db, 'queues'), entry);
-        
-        // Armazena o ID do documento para poder remover depois
         currentQueueId = ref.id;
-        
-        // Abre automaticamente o modal com a posição na fila
+
+        document.getElementById('confirm-queue-modal').classList.remove('show');
         showRingModal(selectedBarber, selectedDate, selectedTime, ref.id);
       } catch(e) {
         console.error(e);
         alert('Erro ao entrar na fila. Tente novamente.');
-      } finally {
-        els.joinQueueBtn.disabled = false;
-        els.joinQueueBtn.textContent = 'Entrar na fila';
       }
     });
 
@@ -637,7 +627,146 @@
       }
     });
 
-    els.otherDateBtn?.addEventListener('click', () => { els.ringModal.classList.remove('show'); });
+    els.otherDateBtn?.addEventListener('click', () => { 
+      const timesContainer = document.getElementById('queue-times-container');
+      const barberContainer = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-3');
+      timesContainer.classList.add('hidden');
+      barberContainer.parentElement.classList.remove('hidden');
+    });
+
+    // ===== TELA DE CHECK-IN DO BARBEIRO =====
+    let checkinListener = null;
+
+    function showCheckinPage() {
+      els.app.classList.add('hidden');
+      document.getElementById('checkin-page').classList.remove('hidden');
+      loadCheckinQueue();
+    }
+
+    document.getElementById('back-from-checkin')?.addEventListener('click', () => {
+      document.getElementById('checkin-page').classList.add('hidden');
+      els.app.classList.remove('hidden');
+      if (checkinListener) {
+        checkinListener();
+        checkinListener = null;
+      }
+    });
+
+    async function loadCheckinQueue() {
+      const checkinList = document.getElementById('checkin-list');
+      const today = getTodayInSaoPaulo();
+
+      const qRef = query(
+        collection(db, 'queues'),
+        where('date', '==', today),
+        orderBy('time'),
+        orderBy('createdAt')
+      );
+
+      if (checkinListener) checkinListener();
+
+      checkinListener = onSnapshot(qRef, (snap) => {
+        checkinList.innerHTML = '';
+
+        if (snap.empty) {
+          checkinList.innerHTML = '<p class="text-center text-gray-600">Nenhum cliente na fila hoje.</p>';
+          return;
+        }
+
+        snap.forEach((docu, index) => {
+          const d = docu.data();
+          const card = document.createElement('div');
+          card.className = 'card p-4 rounded-lg relative overflow-hidden';
+          card.style.touchAction = 'pan-y';
+          
+          const nextHour = String(parseInt(d.time) + 1).padStart(2, '0') + ':00';
+          
+          card.innerHTML = `
+            <div class="flex items-center justify-between relative z-10">
+              <div>
+                <p class="font-bold text-lg" style="color:#151b29">${d.userName}</p>
+                <p class="text-sm text-gray-600">${d.time} - ${nextHour}</p>
+                <p class="text-xs text-gray-500">Entrada: ${new Date(d.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-sm text-gray-600">Posição</p>
+                <p class="text-2xl font-bold text-blue-600">#${index + 1}</p>
+              </div>
+            </div>
+            <div class="absolute top-0 left-0 w-full h-full bg-green-600 flex items-center justify-center text-white font-bold hidden transition-all" style="z-index: 5; left: -100%">
+              ✓ Presença
+            </div>
+            <div class="absolute top-0 right-0 w-full h-full bg-red-600 flex items-center justify-center text-white font-bold hidden transition-all" style="z-index: 5; right: -100%">
+              Ausência ✕
+            </div>
+          `;
+
+          // Implementar swipe
+          let startX = 0;
+          let currentX = 0;
+
+          card.addEventListener('touchstart', (e) => {
+            startX = e.touches[0].clientX;
+          });
+
+          card.addEventListener('touchmove', (e) => {
+            currentX = e.touches[0].clientX;
+            const diff = startX - currentX;
+            const mainContent = card.querySelector('div:first-child');
+            const greenDiv = card.querySelectorAll('div')[1];
+            const redDiv = card.querySelectorAll('div')[2];
+
+            if (diff > 0) {
+              // Swipe esquerda (verde - presença)
+              mainContent.style.transform = `translateX(-${Math.min(diff, 100)}px)`;
+              greenDiv.style.display = 'flex';
+              greenDiv.style.left = `calc(-100% + ${Math.min(diff, 100)}px)`;
+            } else if (diff < 0) {
+              // Swipe direita (vermelho - ausência)
+              mainContent.style.transform = `translateX(-${Math.max(diff, -100)}px)`;
+              redDiv.style.display = 'flex';
+              redDiv.style.right = `calc(-100% + ${Math.max(-diff, 0)}px)`;
+            }
+          });
+
+          card.addEventListener('touchend', (e) => {
+            const diff = startX - currentX;
+            const mainContent = card.querySelector('div:first-child');
+            const greenDiv = card.querySelectorAll('div')[1];
+            const redDiv = card.querySelectorAll('div')[2];
+
+            if (diff > 50) {
+              // Swipe esquerda confirmado - PRESENÇA
+              mainContent.style.transform = 'translateX(-100px)';
+              greenDiv.style.left = '0';
+              setTimeout(() => confirmCheckin(docu.id, 'present'), 300);
+            } else if (diff < -50) {
+              // Swipe direita confirmado - AUSÊNCIA
+              mainContent.style.transform = 'translateX(100px)';
+              redDiv.style.right = '0';
+              setTimeout(() => confirmCheckin(docu.id, 'absent'), 300);
+            } else {
+              // Não confirmado, voltar
+              mainContent.style.transform = 'translateX(0)';
+              greenDiv.style.left = '-100%';
+              redDiv.style.right = '-100%';
+            }
+          });
+
+          checkinList.appendChild(card);
+        });
+      });
+    }
+
+    async function confirmCheckin(queueId, status) {
+      try {
+        const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        await deleteDoc(doc(db, 'queues', queueId));
+      } catch(e) {
+        console.error('Erro ao confirmar check-in:', e);
+        alert('Erro ao processar check-in');
+      }
+    }
   </script>
   <script>
     if ('serviceWorker' in navigator) {
@@ -738,7 +867,7 @@
       </div>
     </div>
 
-    <main class="container mx-auto px-4 py-8 max-w-3xl">
+    <main class="container mx-auto px-4 py-8 max-w-4xl">
       <div class="card rounded-xl p-6 mb-6">
         <h2 class="text-2xl font-bold mb-4" style="color:#151b29">Escolha o barbeiro</h2>
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -746,22 +875,14 @@
         </div>
       </div>
 
-      <div class="card rounded-xl p-6 mb-6">
-        <h2 class="text-2xl font-bold mb-4" style="color:#151b29">Data e Horário</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-semibold mb-1" style="color:#151b29">Data</label>
-            <input id="date-input" type="date" class="w-full border border-gray-300 rounded-lg px-4 py-3">
-          </div>
-          <div>
-            <label class="block text-sm font-semibold mb-1" style="color:#151b29">Horário</label>
-            <input id="time-input" type="time" class="w-full border border-gray-300 rounded-lg px-4 py-3">
-          </div>
+      <!-- Tela de horários (aparece após escolher barbeiro) -->
+      <div id="queue-times-container" class="hidden">
+        <div class="mb-4 flex items-center justify-between">
+          <h2 class="text-2xl font-bold" style="color:#151b29">Horários disponíveis</h2>
+          <button id="back-to-barbers" class="zele-btn px-4 py-2 rounded-lg text-sm">← Voltar</button>
         </div>
-        <p id="queue-info" class="text-sm text-gray-600 mt-3">Escolha barbeiro, data e horário.</p>
-        <div class="flex gap-3 mt-4">
-          <button id="join-queue-btn" class="flex-1 zele-btn font-bold py-3 px-6 rounded-lg" disabled>Entrar na fila</button>
-          <button id="other-date-btn" class="flex-1 bg-blue-600 text-white font-bold py-3 px-6 rounded-lg">Ver outra data</button>
+        <div id="queue-times-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-96 overflow-y-auto pb-4">
+          <!-- Cards de horários serão adicionados aqui -->
         </div>
       </div>
     </main>
@@ -779,6 +900,38 @@
         <button class="flex-1 zele-btn font-bold py-3 px-6 rounded-lg" onclick="document.getElementById('ring-modal').classList.remove('show')">Fechar</button>
       </div>
     </div>
+  </div>
+
+  <!-- Modal de confirmação de entrada na fila -->
+  <div id="confirm-queue-modal" class="modal-overlay">
+    <div class="card rounded-2xl p-6 max-w-sm w-full mx-4">
+      <h2 class="text-xl font-bold mb-4" style="color:#151b29">Confirmar entrada na fila</h2>
+      <div class="bg-gray-50 p-4 rounded-lg mb-4">
+        <p class="text-sm text-gray-600">Barbeiro: <span id="confirm-barber-name" class="font-bold" style="color:#151b29"></span></p>
+        <p class="text-sm text-gray-600">Horário: <span id="confirm-time" class="font-bold" style="color:#151b29"></span></p>
+        <p class="text-sm text-gray-600">Fila atual: <span id="confirm-queue-count" class="font-bold text-green-600">0</span> pessoas</p>
+        <p class="text-sm text-gray-600 mt-2">Sua posição será: <span id="confirm-position" class="font-bold text-blue-600">1º</span></p>
+      </div>
+      <div class="flex gap-3">
+        <button id="cancel-queue-btn" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg">Cancelar</button>
+        <button id="confirm-queue-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tela de Check-in do Barbeiro -->
+  <div id="checkin-page" class="hidden">
+    <header class="zele-primary text-white">
+      <div class="container mx-auto px-4 py-4 flex items-center gap-3">
+        <button id="back-from-checkin" class="zele-btn p-2 rounded-lg">←</button>
+        <h1 class="text-2xl font-bold">Check-in: Clientes</h1>
+      </div>
+    </header>
+    <main class="container mx-auto px-4 py-8 max-w-2xl">
+      <div id="checkin-list" class="space-y-3 max-h-[calc(100vh-150px)] overflow-y-auto pb-4">
+        <p class="text-center text-gray-600">Carregando clientes...</p>
+      </div>
+    </main>
   </div>
 
     <!-- Modal fila admin -->
