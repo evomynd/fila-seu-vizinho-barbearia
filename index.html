@@ -659,13 +659,13 @@
     // Função para mostrar cards de horários
     async function showQueueTimes() {
       console.log('🚀 showQueueTimes iniciada');
-      const barberContainer = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-3');
       const timesContainer = document.getElementById('queue-times-container');
-      console.log('📦 Containers:', { barberContainer, timesContainer });
+      console.log('📦 Container antes: hasHidden=' + timesContainer.classList.contains('hidden') + ', display=' + getComputedStyle(timesContainer).display);
       
       // Hide main app, show times container
       els.app.classList.add('hidden');
       timesContainer.classList.remove('hidden');
+      console.log('📦 Container depois: hasHidden=' + timesContainer.classList.contains('hidden') + ', display=' + getComputedStyle(timesContainer).display);
 
       const timesGrid = document.getElementById('queue-times-grid');
       timesGrid.innerHTML = '';
@@ -757,14 +757,9 @@
         timesGrid.appendChild(card);
       }
 
-      console.log('✅ Cards criados:', timesGrid.children.length);
-      console.log('📐 Grid info:', { 
-        width: timesGrid.offsetWidth, 
-        height: timesGrid.offsetHeight, 
-        display: getComputedStyle(timesGrid).display,
-        parentDisplay: getComputedStyle(timesContainer).display,
-        innerHTML: timesGrid.innerHTML.length
-      });
+      console.log('✅ Cards criados: ' + timesGrid.children.length);
+      const gridInfo = 'width=' + timesGrid.offsetWidth + ', height=' + timesGrid.offsetHeight + ', display=' + getComputedStyle(timesGrid).display + ', parentDisplay=' + getComputedStyle(timesContainer).display + ', parentHidden=' + timesContainer.classList.contains('hidden') + ', innerHTML=' + timesGrid.innerHTML.length;
+      console.log('📐 Grid info: ' + gridInfo);
       if (timesGrid.children.length === 0) {
         timesGrid.innerHTML = '<p class="col-span-3 text-center text-gray-600">Nenhum horário disponível hoje.</p>';
       }
