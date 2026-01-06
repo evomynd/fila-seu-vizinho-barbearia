@@ -1,1514 +1,646 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Seu Vizinho - Fila</title>
-  <meta name="application-name" content="Seu Vizinho">
-  <meta name="apple-mobile-web-app-title" content="Seu Vizinho">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#151b29">
-  <link rel="manifest" href="./manifest.json">
-  <link rel="icon" type="image/png" href="https://github.com/evomynd/fila-seu-vizinho-barbearia/blob/main/icons/icon-512x512.png?raw=true">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background-color: #cdc8c0; }
-    .zele-primary { background-color: #151b29; }
-    .zele-btn { background-color: #151b29; color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.3); border: 1px solid #e5e5e5; transition: all .2s ease; }
-    .zele-btn:hover { background-color: #1f2937; transform: translateY(-2px); }
-    .card { background: white; border: 2px solid #e5e5e5; box-shadow: 0 8px 16px rgba(0,0,0,0.15); }
-    .modal-overlay { display:none; position:fixed; inset:0; background-color: rgba(0,0,0,.5); z-index: 9998; align-items:center; justify-content:center; }
-    .modal-overlay.show { display:flex; }
-    #menu-drawer { 
-      position: fixed;
-      top: 0;
-      right: -300px;
-      width: 300px;
-      height: 100%;
-      background: white;
-      box-shadow: -4px 0 16px rgba(0,0,0,0.2);
-      z-index: 9999;
-      transition: right 0.3s ease-in-out;
-    }
-    #menu-drawer.show { 
-      right: 0;
-    }
-    #checkin-page .card > div:first-child {
-      transition: transform 0.2s ease-out;
-    }
-  </style>
-  <script type="module">
-    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, updateProfile } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
-    import { getFirestore, doc, setDoc, getDoc, collection, addDoc, onSnapshot, query, where, orderBy, updateDoc, deleteDoc, getDocs } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BarberQueue - Multi Barbeiros</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyCyTJVlgvkLa2-SUNaxAlOiTezcXfjiP64",
-      authDomain: "seu-vizinho-barbearia.firebaseapp.com",
-      projectId: "seu-vizinho-barbearia",
-      storageBucket: "seu-vizinho-barbearia.firebasestorage.app",
-      messagingSenderId: "25346983688",
-      appId: "1:25346983688:web:727308786e34874ae50ebd"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
-
-    let currentUser = null;
-    let userRole = null; // 'owner', 'barber', 'customer'
-    let selectedBarber = null;
-    let selectedBarberName = null; // nome do barbeiro selecionado
-    let selectedDate = null;
-    let selectedTime = null;
-    let editingBarberId = null;
-    let currentBarberAvailability = null;
-    let currentQueueId = null;
-    let queueListener = null;
-    let currentQueueInfo = null; // Armazena info da fila atual: {barberId, barberName, date, time}
-
-    function getTodayInSaoPaulo() {
-      const now = new Date();
-      const saoPauloTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-      return saoPauloTime.toISOString().split('T')[0];
-    }
-
-    function getTomorrowInSaoPaulo() {
-      const now = new Date();
-      const saoPauloTime = new Date(now.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
-      saoPauloTime.setDate(saoPauloTime.getDate() + 1);
-      
-      // Se amanhã for domingo (0), pula para segunda (1)
-      if (saoPauloTime.getDay() === 0) {
-        saoPauloTime.setDate(saoPauloTime.getDate() + 1);
-      }
-      
-      return saoPauloTime.toISOString().split('T')[0];
-    }
-
-    function getAllowedDates() {
-      return [getTodayInSaoPaulo(), getTomorrowInSaoPaulo()];
-    }
-
-    const els = {
-      loading: document.getElementById('loading-screen'),
-      login: document.getElementById('auth-screen'),
-      app: document.getElementById('app-container'),
-      googleBtn: document.getElementById('google-login-btn'),
-      showEmailBtn: document.getElementById('show-email-login'),
-      emailModal: document.getElementById('email-login-modal'),
-      closeEmailModal: document.getElementById('close-email-modal'),
-      emailLoginForm: document.getElementById('email-login-form'),
-      emailSignupForm: document.getElementById('email-signup-form'),
-      emailResetForm: document.getElementById('email-reset-form'),
-      showSignupLink: document.getElementById('show-signup'),
-      showLoginLink: document.getElementById('show-login'),
-      showResetLink: document.getElementById('show-reset'),
-      loginEmail: document.getElementById('login-email'),
-      loginPassword: document.getElementById('login-password'),
-      loginBtn: document.getElementById('login-btn'),
-      signupName: document.getElementById('signup-name'),
-      signupEmail: document.getElementById('signup-email'),
-      signupPassword: document.getElementById('signup-password'),
-      signupBtn: document.getElementById('signup-btn'),
-      resetEmail: document.getElementById('reset-email'),
-      resetBtn: document.getElementById('reset-btn'),
-      authError: document.getElementById('auth-error'),
-      userName: document.getElementById('user-name'),
-      userEmail: document.getElementById('user-email'),
-      userPhoto: document.getElementById('user-photo'),
-      barberBtns: document.querySelectorAll('.barber-btn'),
-      dateInput: document.getElementById('date-input'),
-      timeInput: document.getElementById('time-input'),
-      queueInfo: document.getElementById('queue-info'),
-      joinQueueBtn: document.getElementById('join-queue-btn'),
-      otherDateBtn: document.getElementById('other-date-btn'),
-      ringModal: document.getElementById('ring-modal'),
-      ringNumber: document.getElementById('ring-number'),
-      leaveQueueBtn: document.getElementById('leave-queue-btn'),
-      menuBtn: document.getElementById('menu-btn'),
-      menuOverlay: document.getElementById('menu-overlay'),
-      menuDrawer: document.getElementById('menu-drawer'),
-      menuCloseBtn: document.getElementById('menu-close-btn'),
-      adminBtn: document.getElementById('menu-admin-btn'),
-      adminPage: document.getElementById('admin-page'),
-      backFromAdmin: document.getElementById('back-from-admin'),
-      adminBarberList: document.getElementById('admin-barber-list'),
-      adminAddBarberBtn: document.getElementById('admin-add-barber-btn'),
-      adminBarberName: document.getElementById('admin-barber-name'),
-      adminAvailabilityBtn: document.getElementById('admin-availability-btn'),
-      availabilityModal: document.getElementById('availability-modal'),
-      closeAvailabilityModal: document.getElementById('close-availability-modal'),
-      availBarberName: document.getElementById('avail-barber-name'),
-      availDays: document.getElementById('avail-days'),
-      availStartTime: document.getElementById('avail-start-time'),
-      availEndTime: document.getElementById('avail-end-time'),
-      saveAvailabilityBtn: document.getElementById('save-availability-btn')
-    };
-
-      // Elementos do modal de fila admin
-      els.adminQueueModal = document.getElementById('admin-queue-modal');
-      els.closeAdminQueueModal = document.getElementById('close-admin-queue-modal');
-      els.adminQueueList = document.getElementById('admin-queue-list');
-
-    function showLoading() { els.loading.style.display = 'flex'; els.login.classList.add('hidden'); els.app.classList.add('hidden'); }
-    function showLogin() { els.loading.style.display = 'none'; els.login.classList.remove('hidden'); els.app.classList.add('hidden'); }
-    function showApp() { els.loading.style.display = 'none'; els.login.classList.add('hidden'); els.app.classList.remove('hidden'); }
-
-    els.googleBtn?.addEventListener('click', async () => {
-      try { showLoading(); const res = await signInWithPopup(auth, provider); currentUser = res.user; await ensureUserDoc(currentUser); } catch(e){ console.error(e); showLogin(); }
-    });
-
-    els.showEmailBtn?.addEventListener('click', () => {
-      els.emailModal.classList.add('show');
-      showEmailForm('login');
-    });
-
-    els.closeEmailModal?.addEventListener('click', () => els.emailModal.classList.remove('show'));
-
-    els.showSignupLink?.addEventListener('click', (e) => { e.preventDefault(); showEmailForm('signup'); });
-    els.showLoginLink?.addEventListener('click', (e) => { e.preventDefault(); showEmailForm('login'); });
-    els.showResetLink?.addEventListener('click', (e) => { e.preventDefault(); showEmailForm('reset'); });
-
-    function showEmailForm(type) {
-      els.emailLoginForm.classList.add('hidden');
-      els.emailSignupForm.classList.add('hidden');
-      els.emailResetForm.classList.add('hidden');
-      els.authError.textContent = '';
-      if (type === 'login') els.emailLoginForm.classList.remove('hidden');
-      else if (type === 'signup') els.emailSignupForm.classList.remove('hidden');
-      else if (type === 'reset') els.emailResetForm.classList.remove('hidden');
-    }
-
-    els.loginBtn?.addEventListener('click', async () => {
-      const email = els.loginEmail.value.trim();
-      const password = els.loginPassword.value;
-      if (!email || !password) { els.authError.textContent = 'Preencha todos os campos.'; return; }
-      try {
-        els.authError.textContent = '';
-        els.loginBtn.disabled = true;
-        els.loginBtn.textContent = 'Entrando...';
-        await signInWithEmailAndPassword(auth, email, password);
-        els.emailModal.classList.remove('show');
-      } catch(e) {
-        els.authError.textContent = e.code === 'auth/wrong-password' ? 'Senha incorreta.' : e.code === 'auth/user-not-found' ? 'Usuário não encontrado.' : 'Erro ao entrar.';
-      } finally {
-        els.loginBtn.disabled = false;
-        els.loginBtn.textContent = 'Entrar';
-      }
-    });
-
-    els.signupBtn?.addEventListener('click', async () => {
-      const name = els.signupName.value.trim();
-      const email = els.signupEmail.value.trim();
-      const password = els.signupPassword.value;
-      if (!name || !email || !password) { els.authError.textContent = 'Preencha todos os campos.'; return; }
-      if (password.length < 6) { els.authError.textContent = 'Senha deve ter no mínimo 6 caracteres.'; return; }
-      try {
-        els.authError.textContent = '';
-        els.signupBtn.disabled = true;
-        els.signupBtn.textContent = 'Criando...';
-        const res = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(res.user, { displayName: name });
-        await ensureUserDoc(res.user);
-        els.emailModal.classList.remove('show');
-      } catch(e) {
-        els.authError.textContent = e.code === 'auth/email-already-in-use' ? 'Email já cadastrado.' : e.code === 'auth/invalid-email' ? 'Email inválido.' : 'Erro ao criar conta.';
-      } finally {
-        els.signupBtn.disabled = false;
-        els.signupBtn.textContent = 'Criar Conta';
-      }
-    });
-
-    els.resetBtn?.addEventListener('click', async () => {
-      const email = els.resetEmail.value.trim();
-      if (!email) { els.authError.textContent = 'Digite seu email.'; return; }
-      try {
-        els.authError.textContent = '';
-        els.resetBtn.disabled = true;
-        els.resetBtn.textContent = 'Enviando...';
-        await sendPasswordResetEmail(auth, email);
-        els.authError.textContent = 'Email de recuperação enviado! Verifique sua caixa de entrada.';
-        els.authError.style.color = 'green';
-        setTimeout(() => { showEmailForm('login'); els.authError.style.color = ''; }, 3000);
-      } catch(e) {
-        els.authError.textContent = e.code === 'auth/user-not-found' ? 'Email não encontrado.' : 'Erro ao enviar email.';
-      } finally {
-        els.resetBtn.disabled = false;
-        els.resetBtn.textContent = 'Enviar Link';
-      }
-    });
-
-    onAuthStateChanged(auth, async (user) => {
-      if (user) { 
-        currentUser = user; 
-        await ensureUserDoc(user); 
-        updateUserUI(user); 
-        // Carregar role do Firestore
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        userRole = userDoc.data()?.role || 'customer';
-        // Mostrar/ocultar elementos baseado na role
-        updateUIByRole();
+    <style>
+        body { font-family: 'Inter', sans-serif; }
         
-        // Owner e Barber veem a fila de clientes
-        if (userRole === 'owner' || userRole === 'barber') {
-          showAdminQueueModal();
-        } else {
-          // Clientes veem os barbeiros
-          loadBarbers();
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .status-waiting { border-left: 4px solid #f59e0b; }
+        .status-cutting { border-left: 4px solid #10b981; border: 2px solid #10b981; background-color: rgba(16, 185, 129, 0.1); }
+        
+        /* Toggle Switch CSS */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #10b981;
         }
-        showApp(); 
-      } else { 
-        showLogin(); 
-      }
-    });
-
-    async function ensureUserDoc(user){
-      const ref = doc(db, 'users', user.uid);
-      const snap = await getDoc(ref);
-      
-      // Definir role: leandroalves.facilities é sempre owner
-      const role = user.email === 'leandroalves.facilities@gmail.com' ? 'owner' : 'customer';
-      
-      const base = { 
-        email: user.email, 
-        displayName: user.displayName || user.email.split('@')[0], 
-        role: role,
-        createdAt: new Date().toISOString() 
-      };
-      
-      if (!snap.exists()) await setDoc(ref, base);
-      else await setDoc(ref, { lastLogin: new Date().toISOString() }, { merge: true });
-      
-      userRole = role;
-    }
-
-    function updateUserUI(user){
-      const defaultPhoto = 'https://github.com/evomynd/fila-seu-vizinho-barbearia/blob/main/icons/icon-512x512.png?raw=true';
-      els.userName.textContent = user.displayName || 'Usuário';
-      els.userEmail.textContent = user.email;
-      els.userPhoto.src = user.photoURL || defaultPhoto;
-    }
-
-    function updateUIByRole(){
-      // Owner: vê fila de clientes (não vê barbeiros)
-      // Barber: vê fila de clientes (não vê barbeiros)
-      // Customer: só vê barbeiros para entrar na fila
-      
-      const mainCard = document.querySelector('.card.rounded-xl.p-6.mb-6');
-      const adminBtn = document.getElementById('menu-admin-btn');
-      const queueBtn = document.getElementById('menu-queue-btn');
-      const checkinBtn = document.getElementById('menu-checkin-btn');
-      const accessBtn = document.getElementById('menu-access-btn');
-      
-      if (userRole === 'customer') {
-        // Clientes veem apenas a seleção de barbeiros
-        if (queueBtn) queueBtn.style.display = 'none';
-        if (checkinBtn) checkinBtn.style.display = 'none';
-        if (accessBtn) accessBtn.style.display = 'none';
-        if (adminBtn) adminBtn.style.display = 'none';
-        if (mainCard) mainCard.style.display = 'block';
-      } else if (userRole === 'barber') {
-        // Barbeiros veem fila e check-in, não veem o card de escolher barbeiros
-        if (adminBtn) adminBtn.style.display = 'none';
-        if (accessBtn) accessBtn.style.display = 'none';
-        if (mainCard) mainCard.style.display = 'none';
-        if (queueBtn) queueBtn.style.display = 'block';
-        if (checkinBtn) checkinBtn.style.display = 'block';
-      } else if (userRole === 'owner') {
-        // Owner vê tudo EXCETO o card de barbeiros (vê fila de clientes como primeira tela)
-        if (queueBtn) queueBtn.style.display = 'block';
-        if (checkinBtn) checkinBtn.style.display = 'block';
-        if (accessBtn) accessBtn.style.display = 'block';
-        if (adminBtn) adminBtn.style.display = 'block';
-        if (mainCard) mainCard.style.display = 'none'; // Owner NÃO vê o card de escolher barbeiros
-      }
-    }
-
-    function openMenu(){ els.menuOverlay.classList.add('show'); els.menuDrawer.classList.add('show'); }
-    function closeMenu(){ els.menuOverlay.classList.remove('show'); els.menuDrawer.classList.remove('show'); }
-    els.menuBtn?.addEventListener('click', openMenu);
-    els.menuCloseBtn?.addEventListener('click', closeMenu);
-    els.menuOverlay?.addEventListener('click', closeMenu);
-
-    // Adicionar botão de fila de clientes ao menu quando o DOM estiver pronto
-    window.addEventListener('DOMContentLoaded', () => {
-      const menuContainer = document.querySelector('#menu-drawer .space-y-2');
-      if (menuContainer) {
-        const adminQueueBtn = document.createElement('button');
-        adminQueueBtn.id = 'menu-queue-btn';
-        adminQueueBtn.className = 'w-full p-3 border rounded-lg text-left hover:bg-gray-50';
-        adminQueueBtn.textContent = '👥 Fila de clientes';
-        adminQueueBtn.addEventListener('click', () => {
-          closeMenu();
-          showAdminQueueModal();
-        });
-        menuContainer.appendChild(adminQueueBtn);
-
-        const checkinBtn = document.createElement('button');
-        checkinBtn.id = 'menu-checkin-btn';
-        checkinBtn.className = 'w-full p-3 border rounded-lg text-left hover:bg-gray-50';
-        checkinBtn.textContent = '✓ Check-in';
-        checkinBtn.addEventListener('click', () => {
-          closeMenu();
-          showCheckinPage();
-        });
-        menuContainer.appendChild(checkinBtn);
-
-        // Botão de Gerenciar Acesso (apenas para owner)
-        const accessBtn = document.createElement('button');
-        accessBtn.id = 'menu-access-btn';
-        accessBtn.className = 'w-full p-3 border rounded-lg text-left hover:bg-gray-50';
-        accessBtn.textContent = '🔐 Gerenciar Acesso';
-        accessBtn.addEventListener('click', () => {
-          closeMenu();
-          showManageAccessPage();
-        });
-        menuContainer.appendChild(accessBtn);
-
-        // Adicionar separador
-        const separator = document.createElement('div');
-        separator.className = 'border-t my-2';
-        menuContainer.appendChild(separator);
-
-        // Botão de logout
-        const logoutBtn = document.createElement('button');
-        logoutBtn.id = 'menu-logout-btn';
-        logoutBtn.className = 'w-full p-3 border border-red-300 rounded-lg text-left hover:bg-red-50 text-red-600 font-semibold';
-        logoutBtn.textContent = '🚪 Sair';
-        logoutBtn.addEventListener('click', async () => {
-          closeMenu();
-          try {
-            await signOut(auth);
-            currentUser = null;
-            userRole = null;
-            selectedBarber = null;
-            selectedDate = null;
-            selectedTime = null;
-            currentQueueId = null;
-            if (queueListener) {
-              queueListener();
-              queueListener = null;
-            }
-            if (checkinListener) {
-              checkinListener();
-              checkinListener = null;
-            }
-            showLogin();
-          } catch(e) {
-            console.error('Erro ao fazer logout:', e);
-            alert('Erro ao sair. Tente novamente.');
-          }
-        });
-        menuContainer.appendChild(logoutBtn);
-      }
-    });
-
-    els.adminBtn?.addEventListener('click', () => { closeMenu(); els.app.classList.add('hidden'); els.adminPage.classList.remove('hidden'); loadAdminBarbers(); });
-    els.backFromAdmin?.addEventListener('click', () => { els.adminPage.classList.add('hidden'); els.app.classList.remove('hidden'); });
-
-    async function loadAdminBarbers(){
-      els.adminBarberList.innerHTML = '<div class="text-center text-gray-500 p-4">Carregando...</div>';
-      const qRef = query(collection(db, 'barbers'), orderBy('name'));
-      onSnapshot(qRef, (snap) => {
-        els.adminBarberList.innerHTML = '';
-        if (snap.empty) {
-          els.adminBarberList.innerHTML = '<div class="text-center text-gray-500 p-4">Nenhum barbeiro cadastrado ainda.</div>';
-          return;
-        }
-        snap.forEach(docu => {
-          const d = docu.data();
-          const li = document.createElement('div');
-          li.className = 'flex items-center justify-between p-3 border rounded-lg';
-          const availText = d.availability ? `${d.availability.days?.length || 0} dias` : 'Não configurado';
-          li.innerHTML = `
-            <div>
-              <span class="font-semibold">${d.name}</span>
-              <p class="text-xs text-gray-500">Disponibilidade: ${availText}</p>
-            </div>
-            <button class="text-blue-600 hover:text-blue-800 text-sm font-semibold" onclick="window.editBarberAvailability('${docu.id}', '${d.name}')">Editar</button>
-          `;
-          els.adminBarberList.appendChild(li);
-        });
-      }, (error) => {
-        console.error('Erro ao carregar barbeiros:', error);
-        els.adminBarberList.innerHTML = '<div class="text-center text-red-600 p-4">⚠️ Erro de permissão. Configure as regras do Firestore.</div>';
-      });
-    }
-
-    window.editBarberAvailability = async (barberId, barberName) => {
-      editingBarberId = barberId;
-      els.availBarberName.textContent = barberName;
-      const barberDoc = await getDoc(doc(db, 'barbers', barberId));
-      const data = barberDoc.data();
-      const avail = data.availability || { days: [], startTime: '09:00', endTime: '18:00' };
-      
-      document.querySelectorAll('.day-checkbox').forEach(cb => {
-        cb.checked = avail.days?.includes(cb.value) || false;
-      });
-      els.availStartTime.value = avail.startTime || '09:00';
-      els.availEndTime.value = avail.endTime || '18:00';
-      
-      els.availabilityModal.classList.add('show');
-    };
-
-    els.closeAvailabilityModal?.addEventListener('click', () => els.availabilityModal.classList.remove('show'));
-
-    els.saveAvailabilityBtn?.addEventListener('click', async () => {
-      if (!editingBarberId) return;
-      const selectedDays = Array.from(document.querySelectorAll('.day-checkbox:checked')).map(cb => cb.value);
-      const startTime = els.availStartTime.value;
-      const endTime = els.availEndTime.value;
-      
-      if (selectedDays.length === 0) {
-        alert('Selecione pelo menos um dia.');
-        return;
-      }
-      
-      try {
-        await updateDoc(doc(db, 'barbers', editingBarberId), {
-          availability: { days: selectedDays, startTime, endTime }
-        });
-        els.availabilityModal.classList.remove('show');
-        editingBarberId = null;
-      } catch(e) {
-        console.error(e);
-        alert('Erro ao salvar disponibilidade.');
-      }
-    });
-
-      // Função para mostrar modal de fila admin
-      async function showAdminQueueModal() {
-        els.adminQueueModal.classList.add('show');
-        els.adminQueueList.innerHTML = '<div class="text-center text-gray-500">Carregando fila...</div>';
-        // Busca todos os clientes na fila do dia (sem orderBy para evitar índice composto)
-        const today = getTodayInSaoPaulo();
-        const qRef = query(collection(db, 'queues'), where('date', '==', today));
-        onSnapshot(qRef, (snap) => {
-          if (snap.empty) {
-            els.adminQueueList.innerHTML = '<div class="text-center text-gray-500">Nenhum cliente na fila.</div>';
-            return;
-          }
-          
-          // Ordena em memória por barbeiro, tempo, e createdAt
-          const allDocs = [];
-          snap.forEach(docu => {
-            allDocs.push({ docu, data: docu.data() });
-          });
-          
-          allDocs.sort((a, b) => {
-            const barberA = a.data.barberId || '';
-            const barberB = b.data.barberId || '';
-            if (barberA !== barberB) return barberA.localeCompare(barberB);
-            
-            const timeA = a.data.time || '';
-            const timeB = b.data.time || '';
-            if (timeA !== timeB) return timeA.localeCompare(timeB);
-            
-            return new Date(a.data.createdAt) - new Date(b.data.createdAt);
-          });
-          
-          els.adminQueueList.innerHTML = '';
-          allDocs.forEach(item => {
-            const docu = item.docu;
-            const d = item.data;
-            const card = document.createElement('div');
-            card.className = 'card p-4 mb-3 flex items-center justify-between';
-            card.innerHTML = `
-              <div>
-                <div class="font-bold text-lg">${d.userName}</div>
-                <div class="text-sm text-gray-600">Barbeiro: ${d.barberId} | Horário: ${d.time}</div>
-              </div>
-              <button class="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-lg" data-checkin="${docu.id}">Check-in</button>
-            `;
-            els.adminQueueList.appendChild(card);
-          });
-          // Adiciona event listeners para check-in
-          els.adminQueueList.querySelectorAll('button[data-checkin]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-              const id = btn.getAttribute('data-checkin');
-              btn.disabled = true;
-              btn.textContent = 'Confirmando...';
-              const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-              await deleteDoc(doc(db, 'queues', id));
-            });
-          });
-        }, (error) => {
-          console.error('Erro ao carregar fila:', error);
-          els.adminQueueList.innerHTML = '<div class="text-center text-red-600">⚠️ Erro de permissão. Configure as regras do Firestore.</div>';
-        });
-      }
-
-      els.closeAdminQueueModal?.addEventListener('click', () => {
-        els.adminQueueModal.classList.remove('show');
-        els.adminQueueList.innerHTML = '';
-      });
-
-    els.adminAddBarberBtn?.addEventListener('click', async () => {
-      const name = els.adminBarberName.value.trim();
-      if (!name) return;
-      await addDoc(collection(db, 'barbers'), { name, createdAt: new Date().toISOString() });
-      els.adminBarberName.value = '';
-    });
-
-    async function loadBarbers(){
-      const barberContainer = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-3');
-      if (!barberContainer) return;
-      barberContainer.innerHTML = '<p class="col-span-3 text-center text-gray-600">Carregando barbeiros...</p>';
-      
-      // Verifica se o usuário está em uma fila hoje (apenas para clientes)
-      if (currentUser && userRole === 'customer') {
-        const today = getTodayInSaoPaulo();
-        const userQueuesRef = query(
-          collection(db, 'queues'),
-          where('userId', '==', currentUser.uid),
-          where('date', '==', today)
-        );
-        const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const userQueueSnap = await getDocs(userQueuesRef);
-
-        if (!userQueueSnap.empty) {
-          const queueEntry = userQueueSnap.docs[0];
-          const queueData = queueEntry.data();
-          currentQueueId = queueEntry.id;
-          currentQueueInfo = {
-            barberId: queueData.barberId,
-            barberName: queueData.barberId,
-            date: queueData.date,
-            time: queueData.time,
-            queueId: queueEntry.id
-          };
-
-          // Adiciona card de fila atual no topo
-          const queueCard = document.createElement('div');
-          queueCard.className = 'col-span-3 card p-6 rounded-xl mb-6 bg-green-50 border-2 border-green-600';
-          queueCard.innerHTML = `
-            <div class="flex items-center justify-between">
-              <div>
-                <p class="text-sm text-gray-600">Você está na fila de:</p>
-                <p class="text-2xl font-bold text-green-600">${queueData.barberId}</p>
-                <p class="text-sm text-gray-600">Horário: ${queueData.time} - ${String(parseInt(queueData.time) + 1).padStart(2, '0')}:00</p>
-              </div>
-              <div class="flex flex-col items-center">
-                <div class="w-24 h-24 rounded-full bg-green-600 text-white flex items-center justify-center">
-                  <span id="current-position-number" class="text-4xl font-bold">-</span>
-                </div>
-                <p class="text-xs text-gray-600 mt-2 text-center">sua posição</p>
-              </div>
-            </div>
-            <button onclick="document.getElementById('ring-modal').classList.add('show')" class="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
-              Ver detalhes
-            </button>
-          `;
-
-          // Insere o card na container (como primeiro child)
-          barberContainer.parentElement.insertBefore(queueCard, barberContainer.parentElement.firstChild);
-
-          // Carrega posição em tempo real
-          const qRef = query(
-            collection(db, 'queues'),
-            where('barberId', '==', queueData.barberId),
-            where('date', '==', queueData.date),
-            where('time', '==', queueData.time),
-            orderBy('createdAt')
-          );
-          
-          if (queueListener) queueListener();
-          queueListener = onSnapshot(qRef, (snap) => {
-            const ids = [];
-            snap.forEach(d => ids.push(d.id));
-            const myPos = Math.max(1, ids.indexOf(queueEntry.id) + 1);
-            document.getElementById('current-position-number').textContent = myPos;
-          });
-        }
-      }
-      
-      const qRef = query(collection(db, 'barbers'), orderBy('name'));
-      onSnapshot(qRef, (snap) => {
-        // Mantém o card de fila se existir
-        const existingQueueCard = barberContainer.parentElement?.querySelector('.bg-green-50');
-        barberContainer.innerHTML = '';
-        
-        if (snap.empty) {
-          barberContainer.innerHTML = '<p class="col-span-3 text-center text-gray-600">Nenhum barbeiro cadastrado. Use o menu Admin.</p>';
-          return;
-        }
-        snap.forEach(docu => {
-          const d = docu.data();
-          const btn = document.createElement('button');
-          btn.className = 'barber-btn zele-btn rounded-lg py-6 text-lg font-bold';
-          btn.dataset.barberId = docu.id;
-          btn.textContent = d.name;
-          btn.addEventListener('click', () => {
-            selectedBarber = docu.id;
-            selectedBarberName = d.name; // Armazenar o nome do barbeiro
-            currentBarberAvailability = d.availability || null;
-            showQueueTimes();
-          });
-          barberContainer.appendChild(btn);
-        });
-      }, (error) => {
-        console.error('Erro ao carregar barbeiros:', error);
-        barberContainer.innerHTML = '<p class="col-span-3 text-center text-red-600">⚠️ Erro de permissão. Configure as regras do Firestore.</p>';
-      });
-    }
-
-    // Função para mostrar cards de horários
-    async function showQueueTimes() {
-      console.log('🚀 showQueueTimes iniciada');
-      const timesContainer = document.getElementById('queue-times-container');
-      console.log('📦 Container antes: hasHidden=' + timesContainer.classList.contains('hidden') + ', display=' + getComputedStyle(timesContainer).display);
-      
-      // Hide main app, show times container
-      els.app.classList.add('hidden');
-      timesContainer.classList.remove('hidden');
-      console.log('📦 Container depois: hasHidden=' + timesContainer.classList.contains('hidden') + ', display=' + getComputedStyle(timesContainer).display);
-
-      const timesGrid = document.getElementById('queue-times-grid');
-      timesGrid.innerHTML = '';
-      // Garantir que o grid tenha altura
-      timesGrid.style.minHeight = 'calc(100vh - 200px)';
-      timesGrid.style.width = '100%';
-
-      const today = getTodayInSaoPaulo();
-      
-      if (!currentBarberAvailability) {
-        // Usar disponibilidade padrão: segunda a sábado, 08:00-17:00
-        currentBarberAvailability = {
-          days: ['1', '2', '3', '4', '5', '6'], // seg-sab
-          startTime: '08:00',
-          endTime: '17:00'
-        };
-      }
-      
-      if (!currentBarberAvailability.days || currentBarberAvailability.days.length === 0) {
-        currentBarberAvailability.days = ['1', '2', '3', '4', '5', '6']; // seg-sab
-      }
-      
-      if (!currentBarberAvailability.startTime) {
-        currentBarberAvailability.startTime = '08:00';
-      }
-      
-      if (!currentBarberAvailability.endTime) {
-        currentBarberAvailability.endTime = '17:00';
-      }
-
-      const dayOfWeek = new Date(today + 'T00:00:00').getDay().toString();
-      console.log('📅 Data e horário:', { today, dayOfWeek, availableDays: currentBarberAvailability.days });
-      
-      if (!currentBarberAvailability.days.includes(dayOfWeek)) {
-        timesGrid.innerHTML = '<p class="col-span-3 text-center text-gray-600">Este barbeiro não trabalha hoje (dia ' + dayOfWeek + ').</p>';
-        return;
-      }
-
-      const startHour = parseInt(currentBarberAvailability.startTime.split(':')[0]);
-      const endHour = parseInt(currentBarberAvailability.endTime.split(':')[0]);
-      const now = new Date();
-      const currentHour = now.getHours();
-      console.log('⏰ Horários:', { startHour, endHour, currentHour, timeString: currentBarberAvailability.startTime + ' - ' + currentBarberAvailability.endTime });
-
-      // Carregar todas as filas do barbeiro para hoje de uma vez
-      const qRef = query(
-        collection(db, 'queues'),
-        where('barberId', '==', selectedBarber),
-        where('date', '==', today)
-      );
-      const allDocs = await getDocs(qRef);
-      const queuesData = allDocs.docs.map(d => d.data());
-      console.log('📊 Filas carregadas:', { total: queuesData.length, data: queuesData });
-
-      for (let hour = startHour; hour < endHour; hour++) {
-        const timeStr = String(hour).padStart(2, '0') + ':00';
-        const nextHour = String(hour + 1).padStart(2, '0') + ':00';
-        
-        // Não mostrar horários passados
-        if (hour < currentHour) {
-          console.log('⏭️ Pulando horário passado:', timeStr);
-          continue;
-        }
-
-        const card = document.createElement('div');
-        card.className = 'card p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow';
-        card.style.borderLeft = '4px solid #151b29';
-        card.style.backgroundColor = 'white';
-        card.style.color = 'black';
-        
-        const count = queuesData.filter(d => d.time === timeStr).length;
-        console.log('🕐 Criando card:', { timeStr, count });
-
-        card.innerHTML = `
-          <div class="mb-3">
-            <p class="text-lg font-bold" style="color:#151b29">${timeStr} - ${nextHour}</p>
-            <p class="text-sm text-gray-600">${count} cliente${count !== 1 ? 's' : ''} na fila</p>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-2xl font-bold text-blue-600">#${count + 1}</span>
-            <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Sua posição</span>
-          </div>
-        `;
-
-        card.addEventListener('click', () => {
-          console.log('Card clicado:', { timeStr, today, count });
-          selectedTime = timeStr;
-          selectedDate = today;
-          showConfirmQueue(count + 1, count);
-        });
-
-        timesGrid.appendChild(card);
-      }
-
-      console.log('✅ Cards criados: ' + timesGrid.children.length);
-      const gridInfo = 'width=' + timesGrid.offsetWidth + ', height=' + timesGrid.offsetHeight + ', display=' + getComputedStyle(timesGrid).display + ', parentDisplay=' + getComputedStyle(timesContainer).display + ', parentHidden=' + timesContainer.classList.contains('hidden') + ', innerHTML=' + timesGrid.innerHTML.length;
-      console.log('📐 Grid info: ' + gridInfo);
-      if (timesGrid.children.length === 0) {
-        timesGrid.innerHTML = '<p class="col-span-3 text-center text-gray-600">Nenhum horário disponível hoje.</p>';
-      }
-    }
-
-    // Mostrar modal de confirmação
-    function showConfirmQueue(position, currentCount) {
-      const confirmModal = document.getElementById('confirm-queue-modal');
-      const barberName = selectedBarberName || selectedBarber;
-      
-      console.log('showConfirmQueue chamada:', { position, currentCount, selectedBarber, barberName });
-      
-      const confirmBarberNameEl = document.getElementById('confirm-barber-name');
-      const confirmTimeEl = document.getElementById('confirm-time');
-      const confirmQueueCountEl = document.getElementById('confirm-queue-count');
-      const confirmPositionEl = document.getElementById('confirm-position');
-      
-      if (confirmBarberNameEl) confirmBarberNameEl.textContent = barberName;
-      if (confirmTimeEl) confirmTimeEl.textContent = `${selectedTime} - ${String(parseInt(selectedTime) + 1).padStart(2, '0')}:00`;
-      if (confirmQueueCountEl) confirmQueueCountEl.textContent = currentCount;
-      if (confirmPositionEl) confirmPositionEl.textContent = `${position}º será sua posição na fila`;
-
-      if (confirmModal) {
-        confirmModal.classList.add('show');
-        console.log('Modal de confirmação exibido');
-      } else {
-        console.error('Modal de confirmação não encontrado');
-      }
-    }
-
-    // Voltar aos barbeiros
-    document.getElementById('back-to-barbers')?.addEventListener('click', () => {
-      const barberContainer = document.querySelector('.grid.grid-cols-1.sm\\:grid-cols-3');
-      const timesContainer = document.getElementById('queue-times-container');
-      
-      timesContainer.classList.add('hidden');
-      els.app.classList.remove('hidden');
-    });
-
-    // Cancelar entrada na fila
-    document.getElementById('cancel-queue-btn')?.addEventListener('click', () => {
-      document.getElementById('confirm-queue-modal').classList.remove('show');
-    });
-
-    // Confirmar entrada na fila
-    document.getElementById('confirm-queue-btn')?.addEventListener('click', async () => {
-      if (!currentUser || !selectedBarber || !selectedDate || !selectedTime) return;
-
-      try {
-        // Verifica se o usuário já está em uma fila hoje
-        const today = getTodayInSaoPaulo();
-        const userQueuesRef = query(
-          collection(db, 'queues'),
-          where('userId', '==', currentUser.uid),
-          where('date', '==', today)
-        );
-        const { getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const userQueueSnap = await getDocs(userQueuesRef);
-
-        if (!userQueueSnap.empty) {
-          // Usuário já está em uma fila
-          const existingQueue = userQueueSnap.docs[0].data();
-          const newBarberName = selectedBarberName || selectedBarber;
-          const oldBarberName = existingQueue.barberId; // TODO: buscar nome real do barbeiro antigo
-          
-          const confirmSwitch = confirm(
-            `Você já está na fila do barbeiro "${oldBarberName}" às ${existingQueue.time}.\n\n` +
-            `Deseja sair dessa fila e entrar na fila do barbeiro "${newBarberName}" às ${selectedTime}?`
-          );
-
-          if (!confirmSwitch) return;
-
-          // Remove da fila anterior
-          await deleteDoc(doc(db, 'queues', userQueueSnap.docs[0].id));
-        }
-
-        // Adiciona à nova fila
-        const entry = {
-          userId: currentUser.uid,
-          userName: currentUser.displayName || currentUser.email,
-          barberId: selectedBarber,
-          date: selectedDate,
-          time: selectedTime,
-          createdAt: new Date().toISOString()
-        };
-        const ref = await addDoc(collection(db, 'queues'), entry);
-        currentQueueId = ref.id;
-
-        // Armazena info da fila atual
-        currentQueueInfo = {
-          barberId: selectedBarber,
-          barberName: selectedBarberName || selectedBarber,
-          date: selectedDate,
-          time: selectedTime,
-          queueId: ref.id
-        };
-
-        // Fecha o modal de confirmação
-        document.getElementById('confirm-queue-modal').classList.remove('show');
-        
-        // Mostra o anel de posição NA FILA
-        showRingModal(selectedBarber, selectedDate, selectedTime, ref.id);
-        
-        // Reseta a tela de horários
-        const timesContainer = document.getElementById('queue-times-container');
-        timesContainer.classList.add('hidden');
-      } catch(e) {
-        console.error(e);
-        alert('Erro ao entrar na fila. Tente novamente.');
-      }
-    });
-
-    async function showRingModal(barberId, date, time, myId){
-      const qRef = query(collection(db, 'queues'), where('barberId','==', barberId), where('date','==', date), where('time','==', time), orderBy('createdAt'));
-      
-      // Cancela listener anterior se existir
-      if (queueListener) queueListener();
-      
-      queueListener = onSnapshot(qRef, (snap) => {
-        const ids = [];
-        snap.forEach(d => ids.push(d.id));
-        const myPos = Math.max(1, ids.indexOf(myId) + 1);
-        
-        els.ringNumber.textContent = myPos;
-        document.getElementById('ring-position-text').textContent = `${myPos}º sua posição na fila`;
-        
-        // Muda para verde
-        const ringCircle = document.querySelector('#ring-modal .border-blue-600');
-        if (ringCircle) {
-          ringCircle.classList.remove('border-blue-600');
-          ringCircle.classList.add('border-green-600');
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #10b981;
         }
         
-        els.ringModal.classList.add('show');
-      });
-    }
-
-    els.leaveQueueBtn?.addEventListener('click', async () => {
-      if (!currentQueueId) return;
-      
-      try {
-        els.leaveQueueBtn.disabled = true;
-        els.leaveQueueBtn.textContent = 'Saindo...';
-        
-        const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        await deleteDoc(doc(db, 'queues', currentQueueId));
-        
-        // Cancela o listener
-        if (queueListener) {
-          queueListener();
-          queueListener = null;
-        }
-        
-        // Fecha o modal e reseta o estado
-        els.ringModal.classList.remove('show');
-        currentQueueId = null;
-        currentQueueInfo = null;
-        
-        // Limpa seleções e volta ao estado inicial
-        selectedBarber = null;
-        selectedDate = null;
-        selectedTime = null;
-        els.dateInput.value = '';
-        els.timeInput.value = '';
-        els.queueInfo.textContent = 'Escolha barbeiro, data e horário.';
-        els.joinQueueBtn.disabled = true;
-        
-        document.querySelectorAll('.barber-btn').forEach(b => b.classList.remove('ring-4'));
-        
-        // Mostra tela inicial
-        els.app.classList.remove('hidden');
-      } catch(e) {
-        console.error(e);
-        alert('Erro ao sair da fila. Tente novamente.');
-      } finally {
-        els.leaveQueueBtn.disabled = false;
-        els.leaveQueueBtn.textContent = 'Deixar a fila';
-      }
-    });
-
-    els.otherDateBtn?.addEventListener('click', () => { 
-      const timesContainer = document.getElementById('queue-times-container');
-      timesContainer.classList.add('hidden');
-      els.app.classList.remove('hidden');
-    });
-
-    // ===== TELA DE CHECK-IN DO BARBEIRO =====
-    let checkinListener = null;
-
-    function showCheckinPage() {
-      els.app.classList.add('hidden');
-      document.getElementById('checkin-page').classList.remove('hidden');
-      loadCheckinQueue();
-    }
-
-    document.getElementById('back-from-checkin')?.addEventListener('click', () => {
-      document.getElementById('checkin-page').classList.add('hidden');
-      els.app.classList.remove('hidden');
-      if (checkinListener) {
-        checkinListener();
-        checkinListener = null;
-      }
-    });
-
-    async function loadCheckinQueue() {
-      const checkinList = document.getElementById('checkin-list');
-      const today = getTodayInSaoPaulo();
-
-      // Query simples sem índice composto
-      const qRef = query(
-        collection(db, 'queues'),
-        where('date', '==', today),
-        orderBy('createdAt')
-      );
-
-      if (checkinListener) checkinListener();
-
-      checkinListener = onSnapshot(qRef, (snap) => {
-        checkinList.innerHTML = '';
-
-        if (snap.empty) {
-          checkinList.innerHTML = '<p class="text-center text-gray-600">Nenhum cliente na fila hoje.</p>';
-          return;
-        }
-
-        // Ordena em memória por time depois por createdAt
-        const allDocs = [];
-        snap.forEach((docu) => {
-          allDocs.push({ docu, data: docu.data() });
-        });
-
-        allDocs.sort((a, b) => {
-          const timeA = a.data.time || '';
-          const timeB = b.data.time || '';
-          if (timeA !== timeB) {
-            return timeA.localeCompare(timeB);
-          }
-          return new Date(a.data.createdAt) - new Date(b.data.createdAt);
-        });
-
-        allDocs.forEach((item, index) => {
-          const docu = item.docu;
-          const d = item.data;
-          const card = document.createElement('div');
-          card.className = 'card p-4 rounded-lg relative overflow-hidden';
-          card.style.touchAction = 'pan-y';
-          
-          const nextHour = String(parseInt(d.time) + 1).padStart(2, '0') + ':00';
-          
-          card.innerHTML = `
-            <div class="flex items-center justify-between relative z-10">
-              <div>
-                <p class="font-bold text-lg" style="color:#151b29">${d.userName}</p>
-                <p class="text-sm text-gray-600">${d.time} - ${nextHour}</p>
-                <p class="text-xs text-gray-500">Entrada: ${new Date(d.createdAt).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'})}</p>
-              </div>
-              <div class="text-right">
-                <p class="text-sm text-gray-600">Posição</p>
-                <p class="text-2xl font-bold text-blue-600">#${index + 1}</p>
-              </div>
-            </div>
-            <div class="absolute top-0 left-0 w-full h-full bg-green-600 flex items-center justify-center text-white font-bold hidden transition-all" style="z-index: 5; left: -100%">
-              ✓ Presença
-            </div>
-            <div class="absolute top-0 right-0 w-full h-full bg-red-600 flex items-center justify-center text-white font-bold hidden transition-all" style="z-index: 5; right: -100%">
-              Ausência ✕
-            </div>
-          `;
-
-          // Implementar swipe
-          let startX = 0;
-          let currentX = 0;
-
-          card.addEventListener('touchstart', (e) => {
-            startX = e.touches[0].clientX;
-          });
-
-          card.addEventListener('touchmove', (e) => {
-            currentX = e.touches[0].clientX;
-            const diff = startX - currentX;
-            const mainContent = card.querySelector('div:first-child');
-            const greenDiv = card.querySelectorAll('div')[1];
-            const redDiv = card.querySelectorAll('div')[2];
-
-            if (diff > 0) {
-              // Swipe esquerda (verde - presença)
-              mainContent.style.transform = `translateX(-${Math.min(diff, 100)}px)`;
-              greenDiv.style.display = 'flex';
-              greenDiv.style.left = `calc(-100% + ${Math.min(diff, 100)}px)`;
-            } else if (diff < 0) {
-              // Swipe direita (vermelho - ausência)
-              mainContent.style.transform = `translateX(-${Math.max(diff, -100)}px)`;
-              redDiv.style.display = 'flex';
-              redDiv.style.right = `calc(-100% + ${Math.max(-diff, 0)}px)`;
-            }
-          });
-
-          card.addEventListener('touchend', (e) => {
-            const diff = startX - currentX;
-            const mainContent = card.querySelector('div:first-child');
-            const greenDiv = card.querySelectorAll('div')[1];
-            const redDiv = card.querySelectorAll('div')[2];
-
-            if (diff > 50) {
-              // Swipe esquerda confirmado - PRESENÇA
-              mainContent.style.transform = 'translateX(-100px)';
-              greenDiv.style.left = '0';
-              setTimeout(() => confirmCheckin(docu.id, 'present'), 300);
-            } else if (diff < -50) {
-              // Swipe direita confirmado - AUSÊNCIA
-              mainContent.style.transform = 'translateX(100px)';
-              redDiv.style.right = '0';
-              setTimeout(() => confirmCheckin(docu.id, 'absent'), 300);
-            } else {
-              // Não confirmado, voltar
-              mainContent.style.transform = 'translateX(0)';
-              greenDiv.style.left = '-100%';
-              redDiv.style.right = '-100%';
-            }
-          });
-
-          checkinList.appendChild(card);
-        });
-      }, (error) => {
-        console.error('Erro ao carregar fila de check-in:', error);
-        checkinList.innerHTML = '<p class="text-center text-red-600">⚠️ Erro ao carregar fila.</p>';
-      });
-    }
-
-    async function confirmCheckin(queueId, status) {
-      try {
-        const { deleteDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        await deleteDoc(doc(db, 'queues', queueId));
-      } catch(e) {
-        console.error('Erro ao confirmar check-in:', e);
-        alert('Erro ao processar check-in');
-      }
-    }
-
-    // ===== PÁGINA DE GERENCIAR ACESSO =====
-    function showManageAccessPage() {
-      if (userRole !== 'owner') {
-        alert('Apenas o dono da barbearia pode acessar esta função.');
-        return;
-      }
-      els.app.classList.add('hidden');
-      document.getElementById('manage-access-page').classList.remove('hidden');
-      loadUsersList();
-    }
-
-    document.getElementById('back-from-manage-access')?.addEventListener('click', () => {
-      document.getElementById('manage-access-page').classList.add('hidden');
-      els.app.classList.remove('hidden');
-    });
-
-    async function loadUsersList() {
-      const usersList = document.getElementById('users-list');
-      usersList.innerHTML = '<div class="text-center text-gray-500 p-4">Carregando usuários...</div>';
-
-      try {
-        const { getDocs: firestoreGetDocs, query: firestoreQuery, orderBy: firestoreOrderBy } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        
-        const usersRef = collection(db, 'users');
-        const q = firestoreQuery(usersRef, firestoreOrderBy('email', 'asc'));
-        const usersSnapshot = await firestoreGetDocs(q);
-
-        if (usersSnapshot.empty) {
-          usersList.innerHTML = '<p class="text-center text-gray-500 py-8">Nenhum usuário encontrado.</p>';
-          return;
-        }
-
-        const users = [];
-        usersSnapshot.forEach(doc => {
-          const data = doc.data();
-          users.push({
-            id: doc.id,
-            email: data.email || 'Sem email',
-            displayName: data.displayName || data.email?.split('@')[0] || 'Sem nome',
-            role: data.role || 'customer',
-            createdAt: data.createdAt || '',
-            lastLogin: data.lastLogin || ''
-          });
-        });
-
-        // Ordenar por role (owner > barber > customer)
-        users.sort((a, b) => {
-          const roleOrder = { owner: 0, barber: 1, customer: 2 };
-          const roleCompare = roleOrder[a.role] - roleOrder[b.role];
-          if (roleCompare !== 0) return roleCompare;
-          return (a.displayName || a.email).localeCompare(b.displayName || b.email);
-        });
-
-        usersList.innerHTML = '';
-        users.forEach(user => {
-          const isCurrentUser = user.id === currentUser.uid;
-          const roleBadges = {
-            owner: '👑 Dono',
-            barber: '✂️ Barbeiro',
-            customer: '👤 Cliente'
-          };
-          const roleBadge = roleBadges[user.role] || user.role;
-
-          const userCard = document.createElement('div');
-          userCard.className = `card p-4 rounded-lg border-l-4 ${user.role === 'owner' ? 'border-purple-500 bg-purple-50' : user.role === 'barber' ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50'}`;
-          
-          userCard.innerHTML = `
-            <div class="flex items-center justify-between mb-3">
-              <div>
-                <p class="font-bold text-gray-800">${user.displayName} ${isCurrentUser ? '(você)' : ''}</p>
-                <p class="text-sm text-gray-600">${user.email}</p>
-              </div>
-              <span class="text-sm font-semibold px-3 py-1 rounded-full ${user.role === 'owner' ? 'bg-purple-200 text-purple-800' : user.role === 'barber' ? 'bg-blue-200 text-blue-800' : 'bg-gray-200 text-gray-800'}">
-                ${roleBadge}
-              </span>
-            </div>
-
-            <div class="flex gap-2">
-              ${!isCurrentUser ? `
-                <select onchange="changeUserRole('${user.id}', this.value)" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                  <option value="customer" ${user.role === 'customer' ? 'selected' : ''}>👤 Cliente</option>
-                  <option value="barber" ${user.role === 'barber' ? 'selected' : ''}>✂️ Barbeiro</option>
-                  <option value="owner" ${user.role === 'owner' ? 'selected' : ''}>👑 Dono</option>
-                </select>
-                <button onclick="deleteUser('${user.id}', '${user.displayName}')" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">
-                  🗑️ Remover
-                </button>
-              ` : `
-                <span class="text-sm text-gray-500 px-3 py-2">Seu usuário</span>
-              `}
-            </div>
-          `;
-
-          usersList.appendChild(userCard);
-        });
-      } catch(e) {
-        console.error('Erro ao carregar usuários:', e);
-        usersList.innerHTML = '<p class="text-center text-red-600 py-8">⚠️ Erro ao carregar usuários.</p>';
-      }
-    }
-
-    window.changeUserRole = async (userId, newRole) => {
-      if (!currentUser || userRole !== 'owner') {
-        alert('Apenas o dono pode alterar roles.');
-        return;
-      }
-
-      try {
-        await updateDoc(doc(db, 'users', userId), { role: newRole });
-        alert('Role alterado com sucesso!');
-        loadUsersList();
-      } catch(e) {
-        console.error('Erro ao alterar role:', e);
-        alert('Erro ao alterar role do usuário.');
-      }
-    };
-
-    window.deleteUser = async (userId, userName) => {
-      if (!currentUser || userRole !== 'owner') {
-        alert('Apenas o dono pode remover usuários.');
-        return;
-      }
-
-      if (!confirm(`Tem certeza que deseja remover ${userName}? Esta ação não pode ser desfeita.`)) {
-        return;
-      }
-
-      try {
-        await deleteDoc(doc(db, 'users', userId));
-        alert('Usuário removido com sucesso!');
-        loadUsersList();
-      } catch(e) {
-        console.error('Erro ao remover usuário:', e);
-        alert('Erro ao remover usuário.');
-      }
-    };
-
-  </script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('Service Worker registrado:', reg.scope))
-          .catch(err => console.error('Falha ao registrar SW:', err));
-      });
-    }
-  </script>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+    </style>
 </head>
-<body>
-  <div id="loading-screen" class="fixed inset-0 zele-primary flex items-center justify-center z-50">
-    <div class="text-center text-white">
-      <h1 class="text-4xl font-bold mb-2">Seu Vizinho</h1>
-      <p class="opacity-80">Fila de Espera</p>
-      <div class="animate-spin rounded-full h-12 w-12 border-t-4 border-white mx-auto mt-6"></div>
-    </div>
-  </div>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col overflow-hidden">
 
-  <div id="auth-screen" class="fixed inset-0 zele-primary flex items-center justify-center p-4 hidden">
-    <div class="card rounded-2xl p-8 max-w-md w-full text-center">
-      <img src="https://github.com/evomynd/fila-seu-vizinho-barbearia/blob/main/icons/icon-512x512.png?raw=true" alt="Seu Vizinho" class="w-24 h-24 mx-auto mb-4 rounded-full">
-      <h1 class="text-3xl font-bold mb-2" style="color:#151b29">Seu Vizinho</h1>
-      <p class="text-gray-600 mb-6">Fila de Espera</p>
-      <button id="google-login-btn" class="w-full zele-btn font-bold py-3 px-6 rounded-lg mb-3">Entrar com Google</button>
-      <button id="show-email-login" class="text-sm text-gray-600 hover:text-gray-800 underline">Entrar com email</button>
-    </div>
-  </div>
-
-  <div id="email-login-modal" class="modal-overlay">
-    <div class="card rounded-2xl p-6 max-w-md w-full mx-4">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold" style="color:#151b29">Autenticação</h2>
-        <button id="close-email-modal" class="text-gray-600">✕</button>
-      </div>
-      <p id="auth-error" class="text-sm text-red-600 mb-3"></p>
-      
-      <div id="email-login-form">
-        <input id="login-email" type="email" placeholder="Email" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3">
-        <input id="login-password" type="password" placeholder="Senha" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3">
-        <button id="login-btn" class="w-full zele-btn font-bold py-3 px-6 rounded-lg mb-3">Entrar</button>
-        <div class="text-center text-sm">
-          <a href="#" id="show-signup" class="text-blue-600 hover:underline">Criar conta</a>
-          <span class="mx-2 text-gray-400">•</span>
-          <a href="#" id="show-reset" class="text-blue-600 hover:underline">Esqueci a senha</a>
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-lg flex justify-between items-center z-10">
+        <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
+            <i class="fa-solid fa-scissors text-amber-500 text-2xl"></i>
+            <h1 class="text-xl font-bold tracking-tight">Barber<span class="text-amber-500">Queue</span></h1>
         </div>
-      </div>
-
-      <div id="email-signup-form" class="hidden">
-        <input id="signup-name" type="text" placeholder="Nome completo" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3">
-        <input id="signup-email" type="email" placeholder="Email" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3">
-        <input id="signup-password" type="password" placeholder="Senha (mín. 6 caracteres)" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3">
-        <button id="signup-btn" class="w-full zele-btn font-bold py-3 px-6 rounded-lg mb-3">Criar Conta</button>
-        <div class="text-center text-sm">
-          <a href="#" id="show-login" class="text-blue-600 hover:underline">Já tem conta? Entrar</a>
+        <div class="flex gap-2 items-center">
+            <!-- Mostra qual barbeiro está selecionado ou logado -->
+            <span id="headerContext" class="text-xs font-bold text-slate-400 uppercase tracking-widest hidden md:block"></span>
+            
+            <button onclick="openLoginModal()" id="adminBtn" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg transition border border-slate-600">
+                <i class="fa-solid fa-lock mr-1"></i> Área Restrita
+            </button>
+            <button onclick="logout()" id="logoutBtn" class="hidden bg-red-600 hover:bg-red-500 text-xs px-3 py-2 rounded-lg transition border border-red-400">
+                <i class="fa-solid fa-right-from-bracket mr-1"></i> Sair
+            </button>
         </div>
-      </div>
-
-      <div id="email-reset-form" class="hidden">
-        <p class="text-sm text-gray-600 mb-3">Digite seu email para receber o link de recuperação de senha.</p>
-        <input id="reset-email" type="email" placeholder="Email" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3">
-        <button id="reset-btn" class="w-full zele-btn font-bold py-3 px-6 rounded-lg mb-3">Enviar Link</button>
-        <div class="text-center text-sm">
-          <a href="#" id="show-login" class="text-blue-600 hover:underline">Voltar ao login</a>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="app-container" class="hidden">
-    <header class="zele-primary text-white">
-      <div class="container mx-auto px-4 py-4 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <h1 class="text-2xl font-bold">Seu Vizinho</h1>
-        </div>
-        <div class="flex items-center gap-4">
-          <div class="text-right hidden sm:block">
-            <p id="user-name" class="text-sm font-semibold">Usuário</p>
-            <p id="user-email" class="text-xs opacity-90">email@example.com</p>
-          </div>
-          <img id="user-photo" src="" alt="Foto" class="w-10 h-10 rounded-full border-2 border-white">
-          <button id="menu-btn" class="zele-btn p-2 rounded-lg">☰</button>
-        </div>
-      </div>
     </header>
 
-    <div id="menu-overlay" class="modal-overlay"></div>
-    <div id="menu-drawer">
-      <div class="p-6">
-        <div class="flex items-center justify-between mb-6">
-          <h2 class="text-xl font-bold" style="color:#151b29">Menu</h2>
-          <button id="menu-close-btn" class="text-gray-600">✕</button>
-        </div>
-        <div class="space-y-2">
-          <button id="menu-admin-btn" class="w-full p-3 border rounded-lg text-left hover:bg-gray-50">⚙️ Administração</button>
-        </div>
-      </div>
-    </div>
+    <!-- Main Content Area -->
+    <main class="flex-1 relative overflow-hidden flex flex-col">
 
-    <main class="container mx-auto px-4 py-8 max-w-4xl">
-      <div class="card rounded-xl p-6 mb-6">
-        <h2 class="text-2xl font-bold mb-4" style="color:#151b29">Escolha o barbeiro</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <p class="col-span-3 text-center text-gray-600">Carregando barbeiros...</p>
+        <!-- VIEW 1: SELECTION SCREEN (Home) -->
+        <div id="viewSelection" class="absolute inset-0 z-30 bg-slate-900 flex flex-col items-center justify-center p-6 fade-in">
+            <h2 class="text-3xl font-bold text-white mb-2 text-center">Escolha seu Profissional</h2>
+            <p class="text-slate-400 mb-8 text-center">Selecione quem vai te atender hoje.</p>
+            
+            <div id="barberGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 w-full max-w-4xl">
+                <!-- Barber Cards Injected Here -->
+                <div class="col-span-full text-center text-slate-500">Carregando barbeiros...</div>
+            </div>
         </div>
-      </div>
 
-      <!-- Tela de horários (aparece após escolher barbeiro) -->
-      <div id="queue-times-container" class="hidden fixed inset-0 zele-primary flex flex-col pt-16 px-4">
-        <div class="mb-4 flex items-center justify-between">
-          <h2 class="text-2xl font-bold text-white">Horários disponíveis</h2>
-          <button id="back-to-barbers" class="zele-btn px-4 py-2 rounded-lg text-sm">← Voltar</button>
+        <!-- VIEW 2: QUEUE INTERFACE (Split Screen) -->
+        <div id="viewQueue" class="flex-1 flex flex-col md:flex-row h-full hidden">
+            
+            <!-- Left: Add to Queue (Customer) -->
+            <section id="customerPanel" class="w-full md:w-1/3 bg-slate-800/50 p-6 flex flex-col justify-center items-center border-r border-slate-700 relative z-20 transition-all duration-300">
+                <button onclick="goHome()" class="absolute top-4 left-4 text-slate-500 hover:text-white flex items-center gap-2 text-sm">
+                    <i class="fa-solid fa-arrow-left"></i> Voltar
+                </button>
+
+                <div class="max-w-sm w-full space-y-6 mt-8 md:mt-0">
+                    <div class="text-center">
+                        <div class="mb-2 inline-block p-3 rounded-full bg-slate-800 border border-slate-600">
+                            <i class="fa-solid fa-user-tag text-amber-500 text-xl"></i>
+                        </div>
+                        <h2 class="text-2xl font-bold text-white mb-1">Entrar na Fila</h2>
+                        <p class="text-slate-400 text-sm">Fila de: <strong id="queueBarberName" class="text-white">--</strong></p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Seu Nome</label>
+                            <input type="text" id="clientName" placeholder="Ex: João Silva" 
+                                class="w-full bg-slate-900 border border-slate-700 text-white text-lg px-4 py-3 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition shadow-inner">
+                        </div>
+                        <button onclick="addToQueue()" id="joinBtn" 
+                            class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-4 rounded-xl shadow-lg transform active:scale-95 transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-ticket"></i> Pegar Senha
+                        </button>
+                    </div>
+                    
+                    <div id="joinMessage" class="hidden text-center p-3 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm font-medium fade-in">
+                        <i class="fa-solid fa-check-circle mr-1"></i> Você entrou na fila!
+                    </div>
+                </div>
+
+                <!-- Stats Mobile -->
+                <div class="mt-8 grid grid-cols-2 gap-4 w-full max-w-sm md:hidden">
+                    <div class="bg-slate-700/50 p-3 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-white" id="statWaitingMobile">0</div>
+                        <div class="text-xs text-slate-400">Na espera</div>
+                    </div>
+                    <div class="bg-slate-700/50 p-3 rounded-lg text-center">
+                        <div class="text-2xl font-bold text-emerald-400" id="statAvgMobile">--</div>
+                        <div class="text-xs text-slate-400">Tempo Médio</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right: Queue Display (TV/Barber) -->
+            <section class="flex-1 bg-slate-900 p-4 md:p-8 flex flex-col h-full overflow-hidden">
+                <div class="mb-6 flex justify-between items-end border-b border-slate-800 pb-4">
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold text-white">Fila de <span id="displayBarberName" class="text-amber-500">--</span></h2>
+                        <p class="text-slate-400 text-sm mt-1">Atualizado em tempo real</p>
+                    </div>
+                    <div class="hidden md:flex gap-6 text-right">
+                        <div>
+                            <span class="block text-3xl font-bold text-white" id="statWaiting">0</span>
+                            <span class="text-xs text-slate-500 uppercase font-bold">Pessoas</span>
+                        </div>
+                        <div>
+                            <span class="block text-3xl font-bold text-emerald-400"><span id="statAvgDesktop">0</span><span class="text-sm text-emerald-600 ml-1">min</span></span>
+                            <span class="text-xs text-slate-500 uppercase font-bold">Estimado</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Cut -->
+                <div id="activeCutContainer" class="hidden mb-6 fade-in">
+                    <div class="bg-gradient-to-r from-emerald-900/40 to-slate-800 border border-emerald-500/30 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden">
+                        <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-emerald-500 blur-3xl opacity-20 rounded-full"></div>
+                        <div class="flex items-center gap-6 relative z-10">
+                            <div class="bg-emerald-500/20 p-4 rounded-full text-emerald-400 animate-pulse">
+                                <i class="fa-solid fa-chair text-3xl"></i>
+                            </div>
+                            <div>
+                                <p class="text-emerald-400 font-bold text-sm uppercase tracking-widest mb-1">Cortando Agora</p>
+                                <h3 class="text-3xl md:text-4xl font-bold text-white" id="activeClientName">Cliente</h3>
+                            </div>
+                        </div>
+                        
+                        <div class="barber-controls hidden flex gap-3">
+                            <button onclick="finishCut()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex flex-col items-center">
+                                <i class="fa-solid fa-check text-xl mb-1"></i>
+                                <span class="text-xs">Finalizar</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Queue List -->
+                <div class="flex-1 overflow-y-auto pr-2" id="queueList">
+                    <div class="flex flex-col items-center justify-center h-64 text-slate-600">
+                        <i class="fa-solid fa-spinner fa-spin text-4xl mb-4 opacity-50"></i>
+                        <p>Carregando...</p>
+                    </div>
+                </div>
+            </section>
         </div>
-        <div id="queue-times-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto pb-24 flex-1">
-          <!-- Cards de horários serão adicionados aqui -->
+
+        <!-- VIEW 3: ADMIN PANEL -->
+        <div id="viewAdmin" class="absolute inset-0 z-40 bg-slate-900 p-6 md:p-12 overflow-y-auto hidden">
+            <div class="max-w-4xl mx-auto">
+                <div class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+                    <h2 class="text-3xl font-bold text-white"><i class="fa-solid fa-users-gear mr-2 text-amber-500"></i>Gestão de Barbeiros</h2>
+                    <button onclick="logout()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-times text-xl"></i> Fechar</button>
+                </div>
+
+                <!-- Add New Barber -->
+                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8">
+                    <h3 class="text-lg font-bold text-white mb-4">Adicionar Novo Profissional</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <input type="text" id="newBarberName" placeholder="Nome (Ex: Carlos)" class="bg-slate-900 border border-slate-600 rounded-lg p-3 text-white">
+                        <input type="text" id="newBarberPin" placeholder="PIN de Acesso (Ex: 1234)" class="bg-slate-900 border border-slate-600 rounded-lg p-3 text-white">
+                        <button onclick="addBarber()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg p-3">
+                            <i class="fa-solid fa-plus mr-1"></i> Adicionar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- List Barbers -->
+                <h3 class="text-lg font-bold text-white mb-4">Equipe Cadastrada</h3>
+                <div id="adminBarberList" class="space-y-3">
+                    <!-- Injected via JS -->
+                </div>
+            </div>
         </div>
-      </div>
+
     </main>
-  </div>
 
-  <div id="ring-modal" class="modal-overlay">
-    <div class="card rounded-2xl p-6 max-w-sm w-full mx-4 text-center">
-      <h3 class="text-xl font-bold mb-4" style="color:#151b29">Sua posição</h3>
-      <div class="mx-auto w-40 h-40 rounded-full border-[10px] border-blue-600 flex items-center justify-center">
-        <span id="ring-number" class="text-5xl font-bold">0</span>
-      </div>
-      <p id="ring-position-text" class="text-sm text-gray-600 mt-4">Número de pessoas à sua frente</p>
-      <div class="flex gap-3 mt-6">
-        <button id="leave-queue-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Deixar a fila</button>
-        <button class="flex-1 zele-btn font-bold py-3 px-6 rounded-lg" onclick="document.getElementById('ring-modal').classList.remove('show')">Fechar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal de confirmação de entrada na fila -->
-  <div id="confirm-queue-modal" class="modal-overlay">
-    <div class="card rounded-2xl p-6 max-w-sm w-full mx-4">
-      <h2 class="text-xl font-bold mb-4" style="color:#151b29">Confirmar entrada na fila</h2>
-      <div class="bg-gray-50 p-4 rounded-lg mb-4">
-        <p class="text-sm text-gray-600">Barbeiro: <span id="confirm-barber-name" class="font-bold" style="color:#151b29"></span></p>
-        <p class="text-sm text-gray-600">Horário: <span id="confirm-time" class="font-bold" style="color:#151b29"></span></p>
-        <p class="text-sm text-gray-600">Fila atual: <span id="confirm-queue-count" class="font-bold text-green-600">0</span> pessoas</p>
-        <p class="text-sm text-gray-600 mt-2">Sua posição será: <span id="confirm-position" class="font-bold text-blue-600">1º</span></p>
-      </div>
-      <div class="flex gap-3">
-        <button id="cancel-queue-btn" class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-lg">Cancelar</button>
-        <button id="confirm-queue-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg">Confirmar</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Tela de Check-in do Barbeiro -->
-  <div id="checkin-page" class="hidden">
-    <header class="zele-primary text-white">
-      <div class="container mx-auto px-4 py-4 flex items-center gap-3">
-        <button id="back-from-checkin" class="zele-btn p-2 rounded-lg">←</button>
-        <h1 class="text-2xl font-bold">Check-in: Clientes</h1>
-      </div>
-    </header>
-    <main class="container mx-auto px-4 py-8 max-w-2xl">
-      <div id="checkin-list" class="space-y-3 max-h-[calc(100vh-150px)] overflow-y-auto pb-4">
-        <p class="text-center text-gray-600">Carregando clientes...</p>
-      </div>
-    </main>
-  </div>
-
-    <!-- Modal fila admin -->
-    <div id="admin-queue-modal" class="modal-overlay">
-      <div class="card rounded-2xl p-6 max-w-md w-full mx-4">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-xl font-bold" style="color:#151b29">Fila de clientes</h2>
-          <button id="close-admin-queue-modal" class="text-gray-600">✕</button>
+    <!-- Login Modal -->
+    <div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 fade-in">
+        <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-xs text-center">
+            <i class="fa-solid fa-lock text-amber-500 text-3xl mb-4"></i>
+            <h3 class="text-xl font-bold text-white mb-2">Acesso Restrito</h3>
+            <p class="text-slate-400 text-sm mb-6">Digite seu PIN ou a Senha Mestra</p>
+            <input type="password" id="pinInput" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white text-center text-2xl tracking-widest mb-4 focus:border-amber-500 focus:outline-none">
+            <div class="flex gap-2">
+                <button onclick="closeLoginModal()" class="flex-1 py-3 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600">Voltar</button>
+                <button onclick="processLogin()" class="flex-1 py-3 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-500">Entrar</button>
+            </div>
         </div>
-        <div id="admin-queue-list" class="space-y-2"></div>
-      </div>
     </div>
 
-  <div id="availability-modal" class="modal-overlay">
-    <div class="card rounded-2xl p-6 max-w-md w-full mx-4">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-bold" style="color:#151b29">Disponibilidade</h2>
-        <button id="close-availability-modal" class="text-gray-600">✕</button>
-      </div>
-      <p id="avail-barber-name" class="text-sm text-gray-600 mb-4 font-semibold"></p>
-      
-      <div class="mb-4">
-        <label class="block text-sm font-semibold mb-2" style="color:#151b29">Dias da semana</label>
-        <div class="grid grid-cols-2 gap-2">
-          <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-            <input type="checkbox" value="0" class="day-checkbox">
-            <span>Domingo</span>
-          </label>
-          <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-            <input type="checkbox" value="1" class="day-checkbox">
-            <span>Segunda</span>
-          </label>
-          <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-            <input type="checkbox" value="2" class="day-checkbox">
-            <span>Terça</span>
-          </label>
-          <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-            <input type="checkbox" value="3" class="day-checkbox">
-            <span>Quarta</span>
-          </label>
-          <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-            <input type="checkbox" value="4" class="day-checkbox">
-            <span>Quinta</span>
-          </label>
-          <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-            <input type="checkbox" value="5" class="day-checkbox">
-            <span>Sexta</span>
-          </label>
-          <label class="flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-gray-50">
-            <input type="checkbox" value="6" class="day-checkbox">
-            <span>Sábado</span>
-          </label>
-        </div>
-      </div>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-      <div class="grid grid-cols-2 gap-3 mb-4">
-        <div>
-          <label class="block text-sm font-semibold mb-1" style="color:#151b29">Início</label>
-          <input id="avail-start-time" type="time" value="09:00" class="w-full border border-gray-300 rounded-lg px-3 py-2">
-        </div>
-        <div>
-          <label class="block text-sm font-semibold mb-1" style="color:#151b29">Fim</label>
-          <input id="avail-end-time" type="time" value="18:00" class="w-full border border-gray-300 rounded-lg px-3 py-2">
-        </div>
-      </div>
+        // --- CONFIG ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+        
+        const userFirebaseConfig = {
+            apiKey: "AIzaSyCyTJVlgvkLa2-SUNaxAlOiTezcXfjiP64",
+            authDomain: "seu-vizinho-barbearia.firebaseapp.com",
+            projectId: "seu-vizinho-barbearia",
+            storageBucket: "seu-vizinho-barbearia.firebasestorage.app",
+            messagingSenderId: "25346983688",
+            appId: "1:25346983688:web:727308786e34874ae50ebd"
+        };
 
-      <button id="save-availability-btn" class="w-full zele-btn font-bold py-3 px-6 rounded-lg">Salvar</button>
-    </div>
-  </div>
+        let firebaseConfig;
+        let useInternalPath = false;
 
-  <div id="admin-page" class="hidden">
-    <header class="zele-primary text-white">
-      <div class="container mx-auto px-4 py-4 flex items-center gap-3">
-        <button id="back-from-admin" class="zele-btn p-2 rounded-lg">←</button>
-        <h1 class="text-2xl font-bold">Admin: Barbeiros</h1>
-      </div>
-    </header>
-    <main class="container mx-auto px-4 py-8 max-w-3xl">
-      <div class="card rounded-xl p-6">
-        <h2 class="text-xl font-bold mb-4" style="color:#151b29">Gerenciar Barbeiros</h2>
-        <div class="flex gap-2 mb-4">
-          <input id="admin-barber-name" type="text" class="flex-1 border border-gray-300 rounded-lg px-3 py-2" placeholder="Nome do barbeiro">
-          <button id="admin-add-barber-btn" class="zele-btn px-4 py-2 rounded-lg font-semibold">Adicionar</button>
-        </div>
-        <div id="admin-barber-list" class="space-y-2"></div>
-      </div>
-    </main>
-  </div>
+        if (typeof __firebase_config !== 'undefined') {
+            firebaseConfig = JSON.parse(__firebase_config);
+            useInternalPath = true;
+        } else {
+            firebaseConfig = userFirebaseConfig;
+            useInternalPath = false;
+        }
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
 
-  <div id="manage-access-page" class="hidden">
-    <header class="zele-primary text-white">
-      <div class="container mx-auto px-4 py-4 flex items-center gap-3">
-        <button id="back-from-manage-access" class="zele-btn p-2 rounded-lg">←</button>
-        <h1 class="text-2xl font-bold">Gerenciar Acesso</h1>
-      </div>
-    </header>
-    <main class="container mx-auto px-4 py-8 max-w-3xl">
-      <div class="card rounded-xl p-6">
-        <h2 class="text-2xl font-bold mb-4" style="color:#151b29">👥 Usuários do Sistema</h2>
-        <p class="text-sm text-gray-600 mb-6">Gerencie permissões, altere roles e controle acesso ao sistema.</p>
-        <div id="users-list" class="space-y-3">
-          <div class="text-center text-gray-500 p-4">Carregando usuários...</div>
-        </div>
-      </div>
-    </main>
-  </div>
+        // Constants
+        const QUEUE_COL = 'queue';
+        const BARBERS_COL = 'barbers';
+        const MASTER_PIN = "9999"; 
+
+        // State
+        let currentUser = null;
+        let queueData = [];
+        let barbersData = [];
+        let selectedBarber = null; // Object: { id, name, ... }
+        let loggedInMode = null; // 'admin' or 'barber'
+        let loggedInBarberId = null; 
+
+        // Helper Functions for Paths
+        function getCollection(colName) {
+            if (useInternalPath) return collection(db, 'artifacts', appId, 'public', 'data', colName);
+            return collection(db, colName);
+        }
+        function getDocRef(colName, docId) {
+            if (useInternalPath) return doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
+            return doc(db, colName, docId);
+        }
+
+        // --- AUTH ---
+        async function initAuth() {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (error) { console.error("Auth", error); }
+        }
+
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                startListeners();
+            }
+        });
+
+        // --- DATA LISTENERS ---
+        function startListeners() {
+            // Listen to Barbers
+            onSnapshot(getCollection(BARBERS_COL), (snapshot) => {
+                const temp = [];
+                snapshot.forEach(doc => temp.push({ id: doc.id, ...doc.data() }));
+                barbersData = temp;
+                renderBarberGrid(); // Update Home Screen
+                if(loggedInMode === 'admin') renderAdminList(); // Update Admin Screen
+                
+                // If currently selected barber became inactive, go home
+                if (selectedBarber && !loggedInMode) {
+                    const freshBarber = barbersData.find(b => b.id === selectedBarber.id);
+                    if (!freshBarber || !freshBarber.isActive) {
+                        alert("Este barbeiro encerrou o expediente.");
+                        goHome();
+                    }
+                }
+            });
+
+            // Listen to Queue
+            onSnapshot(getCollection(QUEUE_COL), (snapshot) => {
+                const temp = [];
+                snapshot.forEach(doc => temp.push({ id: doc.id, ...doc.data() }));
+                
+                queueData = temp
+                    .filter(item => item.status !== 'done' && item.status !== 'cancelled')
+                    .sort((a, b) => a.joinedAt - b.joinedAt);
+
+                if (selectedBarber) renderQueue();
+                renderBarberGrid(); // <--- CORREÇÃO: Atualiza os cards da home também!
+            });
+        }
+
+        // --- UI NAVIGATION ---
+        window.goHome = () => {
+            if (loggedInMode) return; // Prevent logging out by accident if clicking title
+            selectedBarber = null;
+            document.getElementById('viewSelection').classList.remove('hidden');
+            document.getElementById('viewQueue').classList.add('hidden');
+            document.getElementById('viewAdmin').classList.add('hidden');
+            document.getElementById('headerContext').innerText = "";
+        };
+
+        window.selectBarber = (barberId) => {
+            const barber = barbersData.find(b => b.id === barberId);
+            if (!barber) return;
+
+            selectedBarber = barber;
+            document.getElementById('viewSelection').classList.add('hidden');
+            document.getElementById('viewQueue').classList.remove('hidden');
+            
+            // Set Titles
+            document.getElementById('queueBarberName').innerText = barber.name;
+            document.getElementById('displayBarberName').innerText = barber.name;
+            document.getElementById('headerContext').innerText = `Vendo: ${barber.name}`;
+
+            renderQueue();
+        };
+
+        // --- QUEUE LOGIC ---
+        window.addToQueue = async () => {
+            const name = document.getElementById('clientName').value.trim();
+            if (!name || !selectedBarber) return;
+            
+            const btn = document.getElementById('joinBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+            try {
+                await addDoc(getCollection(QUEUE_COL), {
+                    name: name,
+                    status: 'waiting',
+                    joinedAt: Date.now(),
+                    createdBy: currentUser.uid,
+                    barberId: selectedBarber.id // Critical: Link to barber
+                });
+                document.getElementById('clientName').value = '';
+                const msg = document.getElementById('joinMessage');
+                msg.classList.remove('hidden');
+                setTimeout(() => msg.classList.add('hidden'), 3000);
+            } catch (e) { console.error(e); alert("Erro ao entrar."); }
+            finally { 
+                btn.disabled = false; 
+                btn.innerHTML = '<i class="fa-solid fa-ticket"></i> Pegar Senha';
+            }
+        };
+
+        // --- ADMIN & BARBER LOGIN ---
+        window.openLoginModal = () => {
+            document.getElementById('loginModal').classList.remove('hidden');
+            document.getElementById('pinInput').value = '';
+            document.getElementById('pinInput').focus();
+        };
+
+        window.closeLoginModal = () => {
+            document.getElementById('loginModal').classList.add('hidden');
+        };
+
+        window.processLogin = () => {
+            const pin = document.getElementById('pinInput').value;
+            
+            // 1. Check Master Admin
+            if (pin === MASTER_PIN) {
+                loggedInMode = 'admin';
+                document.getElementById('viewSelection').classList.add('hidden');
+                document.getElementById('viewQueue').classList.add('hidden');
+                document.getElementById('viewAdmin').classList.remove('hidden');
+                document.getElementById('adminBtn').classList.add('hidden');
+                document.getElementById('logoutBtn').classList.remove('hidden');
+                document.getElementById('headerContext').innerText = "MODO ADMIN";
+                closeLoginModal();
+                renderAdminList();
+                return;
+            }
+
+            // 2. Check Barber PIN
+            const barber = barbersData.find(b => b.pin === pin);
+            if (barber) {
+                loggedInMode = 'barber';
+                loggedInBarberId = barber.id;
+                
+                // Set as selected automatically
+                selectedBarber = barber;
+                
+                // Hide Home, Show Queue
+                document.getElementById('viewSelection').classList.add('hidden');
+                document.getElementById('viewQueue').classList.remove('hidden');
+                document.getElementById('viewAdmin').classList.add('hidden');
+                
+                // Adjust UI for Barber
+                document.getElementById('customerPanel').classList.add('hidden'); // Hide entry form
+                document.getElementById('adminBtn').classList.add('hidden');
+                document.getElementById('logoutBtn').classList.remove('hidden');
+                document.getElementById('headerContext').innerText = `Painel: ${barber.name}`;
+                
+                document.getElementById('displayBarberName').innerText = barber.name + " (Você)";
+
+                closeLoginModal();
+                renderQueue(); // Will trigger visibility of controls
+                return;
+            }
+
+            alert("PIN Incorreto ou Barbeiro não encontrado.");
+        };
+
+        window.logout = () => {
+            loggedInMode = null;
+            loggedInBarberId = null;
+            selectedBarber = null;
+            
+            document.getElementById('adminBtn').classList.remove('hidden');
+            document.getElementById('logoutBtn').classList.add('hidden');
+            document.getElementById('customerPanel').classList.remove('hidden');
+            
+            goHome();
+        };
+
+        // --- ADMIN FUNCTIONS ---
+        window.addBarber = async () => {
+            const name = document.getElementById('newBarberName').value.trim();
+            const pin = document.getElementById('newBarberPin').value.trim();
+            if (!name || !pin) return alert("Preencha nome e PIN");
+
+            try {
+                await addDoc(getCollection(BARBERS_COL), {
+                    name, pin, isActive: true, createdAt: Date.now()
+                });
+                document.getElementById('newBarberName').value = '';
+                document.getElementById('newBarberPin').value = '';
+            } catch(e) { alert("Erro ao criar."); }
+        };
+
+        window.toggleBarberStatus = async (id, currentStatus) => {
+            try {
+                await updateDoc(getDocRef(BARBERS_COL, id), { isActive: !currentStatus });
+            } catch(e) { console.error(e); }
+        };
+
+        window.deleteBarber = async (id) => {
+            if(confirm("Tem certeza? Isso não apaga o histórico, mas remove o acesso.")) {
+                await deleteDoc(getDocRef(BARBERS_COL, id));
+            }
+        };
+
+        function renderAdminList() {
+            const container = document.getElementById('adminBarberList');
+            container.innerHTML = '';
+            
+            if (barbersData.length === 0) {
+                container.innerHTML = '<p class="text-slate-500">Nenhum barbeiro cadastrado.</p>';
+                return;
+            }
+
+            barbersData.forEach(b => {
+                const item = document.createElement('div');
+                item.className = 'bg-slate-700 p-4 rounded-lg flex justify-between items-center';
+                item.innerHTML = `
+                    <div>
+                        <div class="font-bold text-white text-lg">${b.name}</div>
+                        <div class="text-xs text-slate-400">PIN: ${b.pin}</div>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs uppercase font-bold ${b.isActive ? 'text-emerald-400' : 'text-slate-500'}">${b.isActive ? 'Ativo' : 'Inativo'}</span>
+                            <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" name="toggle" id="toggle-${b.id}" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-500 transition-all duration-300 ${b.isActive ? 'right-0 border-emerald-500' : 'left-0'}" 
+                                onclick="toggleBarberStatus('${b.id}', ${b.isActive})"/>
+                                <label for="toggle-${b.id}" class="toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${b.isActive ? 'bg-emerald-500' : 'bg-slate-600'}"></label>
+                            </div>
+                        </div>
+                        <button onclick="deleteBarber('${b.id}')" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // --- RENDERERS ---
+        function renderBarberGrid() {
+            const grid = document.getElementById('barberGrid');
+            const activeBarbers = barbersData.filter(b => b.isActive);
+            grid.innerHTML = '';
+
+            if (activeBarbers.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-10">
+                    <i class="fa-solid fa-store-slash text-4xl text-slate-600 mb-4"></i>
+                    <p class="text-slate-400">Nenhum profissional disponível no momento.</p>
+                </div>`;
+                return;
+            }
+
+            activeBarbers.forEach(b => {
+                // Calculate queue for this barber for the preview
+                const count = queueData.filter(q => q.barberId === b.id && q.status === 'waiting').length;
+                const time = count * 20;
+
+                const card = document.createElement('div');
+                card.onclick = () => selectBarber(b.id);
+                card.className = "bg-slate-800 border border-slate-700 hover:border-amber-500 p-6 rounded-2xl cursor-pointer transition transform hover:scale-105 shadow-lg group";
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="bg-slate-700 p-3 rounded-full text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition">
+                            <i class="fa-solid fa-user-tie text-2xl"></i>
+                        </div>
+                        <div class="text-right">
+                            <span class="block text-2xl font-bold text-white">${count}</span>
+                            <span class="text-xs text-slate-500 uppercase">Na Fila</span>
+                        </div>
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-1">${b.name}</h3>
+                    <p class="text-emerald-400 text-sm font-medium"><i class="fa-regular fa-clock mr-1"></i> ~${time} min espera</p>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderQueue() {
+            if (!selectedBarber) return;
+
+            const listContainer = document.getElementById('queueList');
+            const activeContainer = document.getElementById('activeCutContainer');
+            
+            // Filter Queue specifically for this barber
+            const myQueue = queueData.filter(item => item.barberId === selectedBarber.id);
+            const activeClient = myQueue.find(item => item.status === 'cutting');
+            const waitingClients = myQueue.filter(item => item.status === 'waiting');
+
+            // Update Header Stats
+            document.getElementById('statWaiting').innerText = waitingClients.length;
+            document.getElementById('statWaitingMobile').innerText = waitingClients.length;
+            const time = waitingClients.length * 20;
+            document.getElementById('statAvgMobile').innerText = time + "m";
+            document.getElementById('statAvgDesktop').innerText = time;
+
+            // Render Active Client
+            if (activeClient) {
+                activeContainer.classList.remove('hidden');
+                document.getElementById('activeClientName').innerText = activeClient.name;
+                
+                // Show finish button only if logged in as barber OR admin
+                const controls = activeContainer.querySelectorAll('.barber-controls');
+                controls.forEach(c => {
+                    if (loggedInMode === 'admin' || (loggedInMode === 'barber' && loggedInBarberId === selectedBarber.id)) {
+                        c.classList.remove('hidden');
+                    } else {
+                        c.classList.add('hidden');
+                    }
+                });
+                
+                // Attach functions globally for HTML onclick
+                window.finishCut = async () => updateStatus(activeClient.id, 'done');
+
+            } else {
+                activeContainer.classList.add('hidden');
+            }
+
+            // Render Waiting List
+            listContainer.innerHTML = '';
+            if (waitingClients.length === 0 && !activeClient) {
+                listContainer.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-64 text-slate-600 fade-in">
+                        <i class="fa-solid fa-mug-hot text-5xl mb-4 opacity-30"></i>
+                        <p class="text-lg">Tudo calmo para ${selectedBarber.name}.</p>
+                    </div>
+                `;
+            } else {
+                waitingClients.forEach((client, index) => {
+                    const card = document.createElement('div');
+                    card.className = `bg-slate-800 border border-slate-700 rounded-xl p-4 mb-3 flex justify-between items-center shadow-sm fade-in status-waiting`;
+                    
+                    // Controls visibility logic
+                    const showControls = loggedInMode === 'admin' || (loggedInMode === 'barber' && loggedInBarberId === selectedBarber.id);
+                    
+                    card.innerHTML = `
+                        <div class="flex items-center gap-4 flex-1">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-700 text-slate-400 font-bold">
+                                ${index + 1}
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-lg text-white">${client.name}</h4>
+                                <span class="text-xs text-slate-500"><i class="fa-regular fa-clock"></i> ${new Date(client.joinedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                            </div>
+                        </div>
+                        ${showControls ? `
+                        <div class="flex gap-2 ml-4">
+                            <button onclick="callClient('${client.id}')" class="bg-amber-500 hover:bg-amber-600 text-white p-3 rounded-lg shadow"><i class="fa-solid fa-bell"></i></button>
+                            <button onclick="removeClient('${client.id}')" class="bg-slate-700 hover:bg-red-500/80 text-white p-3 rounded-lg"><i class="fa-solid fa-trash"></i></button>
+                        </div>` : ''}
+                    `;
+                    listContainer.appendChild(card);
+                });
+            }
+        }
+
+        // Global Actions
+        window.callClient = async (id) => {
+            if(confirm("Chamar cliente?")) updateStatus(id, 'cutting');
+        };
+        window.removeClient = async (id) => {
+            if(confirm("Remover da fila?")) updateStatus(id, 'cancelled');
+        };
+
+        async function updateStatus(docId, newStatus) {
+            try { await updateDoc(getDocRef(QUEUE_COL, docId), { status: newStatus }); }
+            catch(e) { console.error(e); }
+        }
+
+        // Init
+        initAuth();
+
+    </script>
 </body>
 </html>
