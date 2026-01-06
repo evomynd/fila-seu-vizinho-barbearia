@@ -3,826 +3,549 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BarberQueue - Multi Barbeiros</title>
+    <title>Sistema de Gestão - Barbearia Pro</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- FontAwesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        .glass-panel { background: white; border-radius: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .nav-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 600; }
         
-        .fade-in { animation: fadeIn 0.5s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-        .status-waiting { border-left: 4px solid #f59e0b; }
-        .status-cutting { border-left: 4px solid #10b981; border: 2px solid #10b981; background-color: rgba(16, 185, 129, 0.1); }
-        .status-mine { border: 2px solid #f59e0b; background-color: rgba(245, 158, 11, 0.1); } /* Destaque do cliente */
-        
-        /* Toggle Switch CSS */
-        .toggle-checkbox:checked {
-            right: 0;
-            border-color: #10b981;
-        }
-        .toggle-checkbox:checked + .toggle-label {
-            background-color: #10b981;
-        }
-        
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1e293b; }
-        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        /* Animação suave para modal */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 300ms, transform 300ms; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col overflow-hidden">
+<body class="min-h-screen flex flex-col">
 
-    <!-- Header -->
-    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-lg flex justify-between items-center z-10">
-        <div class="flex items-center gap-3 cursor-pointer" onclick="goHome()">
-            <i class="fa-solid fa-scissors text-amber-500 text-2xl"></i>
-            <h1 class="text-xl font-bold tracking-tight">Barber<span class="text-amber-500">Queue</span></h1>
-        </div>
-        <div class="flex gap-2 items-center">
-            <span id="headerContext" class="text-xs font-bold text-slate-400 uppercase tracking-widest hidden md:block"></span>
-            
-            <button onclick="openLoginModal()" id="adminBtn" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg transition border border-slate-600">
-                <i class="fa-solid fa-lock mr-1"></i> Área Restrita
-            </button>
-            <button onclick="logout()" id="logoutBtn" class="hidden bg-red-600 hover:bg-red-500 text-xs px-3 py-2 rounded-lg transition border border-red-400">
-                <i class="fa-solid fa-right-from-bracket mr-1"></i> Sair
-            </button>
-        </div>
-    </header>
-
-    <!-- Main Content Area -->
-    <main class="flex-1 relative overflow-hidden flex flex-col">
-
-        <!-- VIEW 1: SELECTION SCREEN (Home) -->
-        <div id="viewSelection" class="absolute inset-0 z-30 bg-slate-900 flex flex-col items-center justify-center p-6 fade-in">
-            <h2 class="text-3xl font-bold text-white mb-2 text-center">Escolha seu Profissional</h2>
-            <p class="text-slate-400 mb-8 text-center">Selecione quem vai te atender hoje.</p>
-            
-            <div id="barberGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 w-full max-w-4xl">
-                <div class="col-span-full text-center text-slate-500">Carregando barbeiros...</div>
-            </div>
-            
-            <!-- Aviso se o usuário já estiver em uma fila -->
-            <div id="homeActiveTicketNotice" class="hidden mt-8 p-4 bg-amber-500/10 border border-amber-500/50 rounded-xl flex items-center gap-3 max-w-md w-full animate-pulse cursor-pointer hover:bg-amber-500/20 transition" onclick="returnToMyQueue()">
-                <div class="bg-amber-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">
-                    <i class="fa-solid fa-ticket"></i>
+    <!-- Navegação de Simulação (Para alternar entre as visões do sistema) -->
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <i class="fa-solid fa-scissors text-blue-600 text-2xl mr-2"></i>
+                    <span class="font-bold text-xl text-gray-800">BarberAdmin</span>
                 </div>
-                <div class="text-left flex-1">
-                    <p class="text-sm text-slate-300">Você já está na fila de <strong id="homeTicketBarberName" class="text-white">--</strong></p>
-                    <p class="text-xs text-amber-500 font-bold">Clique para ver sua posição</p>
+                <div class="flex space-x-8 items-center">
+                    <button onclick="switchView('admin')" id="btn-admin" class="nav-item nav-active py-4 px-2 hover:text-blue-500 transition">
+                        <i class="fa-solid fa-chart-pie mr-1"></i> Admin (Dashboard)
+                    </button>
+                    <button onclick="switchView('barber')" id="btn-barber" class="nav-item py-4 px-2 hover:text-blue-500 transition">
+                        <i class="fa-solid fa-user-tie mr-1"></i> Área do Barbeiro
+                    </button>
+                    <button onclick="switchView('client')" id="btn-client" class="nav-item py-4 px-2 hover:text-blue-500 transition">
+                        <i class="fa-solid fa-mobile-screen mr-1"></i> App do Cliente
+                    </button>
                 </div>
-                <i class="fa-solid fa-chevron-right text-slate-500"></i>
             </div>
         </div>
+    </nav>
 
-        <!-- VIEW 2: QUEUE INTERFACE (Split Screen) -->
-        <div id="viewQueue" class="flex-1 flex flex-col md:flex-row h-full hidden">
-            
-            <!-- Left: Add to Queue (Customer) -->
-            <section id="customerPanel" class="w-full md:w-1/3 bg-slate-800/50 p-6 flex flex-col justify-center items-center border-r border-slate-700 relative z-20 transition-all duration-300">
-                <button onclick="goHome()" class="absolute top-4 left-4 text-slate-500 hover:text-white flex items-center gap-2 text-sm">
-                    <i class="fa-solid fa-arrow-left"></i> Voltar
-                </button>
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="flex-grow p-6">
+        
+        <!-- ========================================== -->
+        <!-- VIEW 1: ADMIN DASHBOARD (CHART JS)        -->
+        <!-- ========================================== -->
+        <div id="view-admin" class="view-section max-w-7xl mx-auto space-y-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">Dashboard de Performance</h2>
+                <div class="text-sm text-gray-500 bg-white px-3 py-1 rounded shadow-sm">
+                    <i class="fa-regular fa-calendar mr-2"></i> Últimos 7 dias
+                </div>
+            </div>
 
-                <div class="max-w-sm w-full space-y-6 mt-8 md:mt-0">
-                    <div class="text-center">
-                        <div class="mb-2 inline-block p-3 rounded-full bg-slate-800 border border-slate-600">
-                            <i class="fa-solid fa-user-tag text-amber-500 text-xl"></i>
-                        </div>
-                        <h2 class="text-2xl font-bold text-white mb-1">Entrar na Fila</h2>
-                        <p class="text-slate-400 text-sm">Fila de: <strong id="queueBarberName" class="text-white">--</strong></p>
+            <!-- Grid de Gráficos -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                
+                <!-- Gráfico 1: Cortes Concluídos -->
+                <div class="glass-panel p-4 flex flex-col">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2 border-b pb-2">
+                        <i class="fa-solid fa-check-circle text-green-500 mr-2"></i>Cortes Concluídos
+                    </h3>
+                    <div class="relative h-64 w-full">
+                        <canvas id="chartCompleted"></canvas>
                     </div>
-
-                    <!-- STATE 1: FORM (Visible only if NOT in queue) -->
-                    <div id="joinFormContainer" class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Seu Nome</label>
-                            <input type="text" id="clientName" placeholder="Ex: João Silva" 
-                                class="w-full bg-slate-900 border border-slate-700 text-white text-lg px-4 py-3 rounded-xl focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition shadow-inner">
-                        </div>
-                        <button onclick="addToQueue()" id="joinBtn" 
-                            class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-4 rounded-xl shadow-lg transform active:scale-95 transition flex items-center justify-center gap-2">
-                            <i class="fa-solid fa-ticket"></i> Pegar Senha
-                        </button>
-                    </div>
-                    
-                    <!-- STATE 2: ACTIVE TICKET (Visible only if IN queue) -->
-                    <div id="activeTicketDisplay" class="hidden w-full bg-amber-500/10 border border-amber-500/30 rounded-xl p-6 text-center">
-                        <div class="text-amber-500 text-4xl mb-2"><i class="fa-solid fa-ticket-alt"></i></div>
-                        <h3 class="text-white font-bold text-lg mb-1">Você está na fila!</h3>
-                        <p class="text-slate-400 text-sm mb-4">Acompanhe sua posição no painel ao lado.</p>
-                        
-                        <div class="bg-slate-900/50 rounded-lg p-3 mb-4">
-                            <p class="text-xs text-slate-500 uppercase">Sua Posição</p>
-                            <p class="text-2xl font-bold text-white" id="myPositionDisplay">--</p>
-                        </div>
-                        
-                        <button onclick="confirmExitQueue()" class="text-red-400 hover:text-red-300 text-sm underline">
-                            Cancelar minha vez e sair
-                        </button>
-                    </div>
-
-                    <div id="joinMessage" class="hidden text-center p-3 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm font-medium fade-in">
-                        <i class="fa-solid fa-check-circle mr-1"></i> Você entrou na fila!
-                    </div>
+                    <p class="text-xs text-gray-400 mt-2 text-center">Total de finalizações por barbeiro/dia</p>
                 </div>
 
-                <!-- Stats Mobile -->
-                <div class="mt-8 grid grid-cols-2 gap-4 w-full max-w-sm md:hidden">
-                    <div class="bg-slate-700/50 p-3 rounded-lg text-center">
-                        <div class="text-2xl font-bold text-white" id="statWaitingMobile">0</div>
-                        <div class="text-xs text-slate-400">Na espera</div>
+                <!-- Gráfico 2: Faltas (No-shows) -->
+                <div class="glass-panel p-4 flex flex-col">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2 border-b pb-2">
+                        <i class="fa-solid fa-user-xmark text-red-500 mr-2"></i>Faltas (No-Shows)
+                    </h3>
+                    <div class="relative h-64 w-full">
+                        <canvas id="chartNoShows"></canvas>
                     </div>
-                    <div class="bg-slate-700/50 p-3 rounded-lg text-center">
-                        <div class="text-2xl font-bold text-emerald-400" id="statAvgMobile">--</div>
-                        <div class="text-xs text-slate-400">Tempo Médio</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Right: Queue Display (TV/Barber) -->
-            <section class="flex-1 bg-slate-900 p-4 md:p-8 flex flex-col h-full overflow-hidden">
-                <div class="mb-6 flex justify-between items-end border-b border-slate-800 pb-4">
-                    <div>
-                        <h2 class="text-2xl md:text-3xl font-bold text-white">Fila de <span id="displayBarberName" class="text-amber-500">--</span></h2>
-                        <p class="text-slate-400 text-sm mt-1">Atualizado em tempo real</p>
-                    </div>
-                    <div class="hidden md:flex gap-6 text-right">
-                        <div>
-                            <span class="block text-3xl font-bold text-white" id="statWaiting">0</span>
-                            <span class="text-xs text-slate-500 uppercase font-bold">Pessoas</span>
-                        </div>
-                        <div>
-                            <span class="block text-3xl font-bold text-emerald-400"><span id="statAvgDesktop">0</span><span class="text-sm text-emerald-600 ml-1">min</span></span>
-                            <span class="text-xs text-slate-500 uppercase font-bold">Estimado</span>
-                        </div>
-                    </div>
+                    <p class="text-xs text-gray-400 mt-2 text-center">Clientes que não compareceram</p>
                 </div>
 
-                <!-- Active Cut -->
-                <div id="activeCutContainer" class="hidden mb-6 fade-in">
-                    <div class="bg-gradient-to-r from-emerald-900/40 to-slate-800 border border-emerald-500/30 rounded-2xl p-6 flex items-center justify-between shadow-lg relative overflow-hidden">
-                        <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-emerald-500 blur-3xl opacity-20 rounded-full"></div>
-                        <div class="flex items-center gap-6 relative z-10">
-                            <div class="bg-emerald-500/20 p-4 rounded-full text-emerald-400 animate-pulse">
-                                <i class="fa-solid fa-chair text-3xl"></i>
-                            </div>
-                            <div>
-                                <p class="text-emerald-400 font-bold text-sm uppercase tracking-widest mb-1">Cortando Agora</p>
-                                <h3 class="text-3xl md:text-4xl font-bold text-white" id="activeClientName">Cliente</h3>
-                            </div>
-                        </div>
-                        
-                        <div class="barber-controls hidden flex gap-3">
-                            <button onclick="finishCut()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-xl font-bold shadow-lg transition flex flex-col items-center">
-                                <i class="fa-solid fa-check text-xl mb-1"></i>
-                                <span class="text-xs">Finalizar</span>
-                            </button>
-                        </div>
+                <!-- Gráfico 3: Tempo Médio -->
+                <div class="glass-panel p-4 flex flex-col md:col-span-2 lg:col-span-1">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-2 border-b pb-2">
+                        <i class="fa-solid fa-stopwatch text-blue-500 mr-2"></i>Tempo Médio (min)
+                    </h3>
+                    <div class="relative h-64 w-full">
+                        <canvas id="chartAvgTime"></canvas>
                     </div>
+                    <p class="text-xs text-gray-400 mt-2 text-center">Média calculada entre cliques "Finalizar"</p>
                 </div>
 
-                <!-- Queue List -->
-                <div class="flex-1 overflow-y-auto pr-2" id="queueList">
-                    <div class="flex flex-col items-center justify-center h-64 text-slate-600">
-                        <i class="fa-solid fa-spinner fa-spin text-4xl mb-4 opacity-50"></i>
-                        <p>Carregando...</p>
-                    </div>
+            </div>
+
+            <!-- Tabela Resumo Rápido -->
+            <div class="glass-panel p-6 mt-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Métricas Consolidadas (Hoje)</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full text-left text-sm whitespace-nowrap">
+                        <thead class="uppercase tracking-wider border-b-2 border-gray-200 bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-bold">Barbeiro</th>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-bold">Cortes Hoje</th>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-bold">Faltas</th>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-bold">Tempo Médio</th>
+                                <th scope="col" class="px-6 py-3 text-gray-600 font-bold">Status Atual</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-summary-table" class="bg-white divide-y divide-gray-100">
+                            <!-- Preenchido via JS -->
+                        </tbody>
+                    </table>
                 </div>
-            </section>
+            </div>
         </div>
 
-        <!-- VIEW 3: ADMIN PANEL -->
-        <div id="viewAdmin" class="absolute inset-0 z-40 bg-slate-900 p-6 md:p-12 overflow-y-auto hidden">
-            <div class="max-w-4xl mx-auto">
-                <div class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-                    <h2 class="text-3xl font-bold text-white"><i class="fa-solid fa-users-gear mr-2 text-amber-500"></i>Gestão de Barbeiros</h2>
-                    <button onclick="logout()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-times text-xl"></i> Fechar</button>
-                </div>
-
-                <!-- Add New Barber -->
-                <div class="bg-slate-800 p-6 rounded-xl border border-slate-700 mb-8">
-                    <h3 class="text-lg font-bold text-white mb-4">Adicionar Novo Profissional</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <input type="text" id="newBarberName" placeholder="Nome (Ex: Carlos)" class="bg-slate-900 border border-slate-600 rounded-lg p-3 text-white">
-                        <input type="text" id="newBarberPin" placeholder="PIN de Acesso (Ex: 1234)" class="bg-slate-900 border border-slate-600 rounded-lg p-3 text-white">
-                        <button onclick="addBarber()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg p-3">
-                            <i class="fa-solid fa-plus mr-1"></i> Adicionar
-                        </button>
+        <!-- ========================================== -->
+        <!-- VIEW 2: BARBER INTERFACE (PAUSE BUTTON)   -->
+        <!-- ========================================== -->
+        <div id="view-barber" class="view-section hidden max-w-md mx-auto">
+            <div class="bg-white rounded-xl shadow-xl overflow-hidden">
+                <div class="bg-gray-800 p-6 text-white text-center">
+                    <div class="w-20 h-20 bg-gray-300 rounded-full mx-auto mb-3 overflow-hidden border-4 border-white">
+                        <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="Avatar" class="w-full h-full object-cover">
                     </div>
+                    <h2 class="text-xl font-bold">Olá, João Silva</h2>
+                    <p class="text-gray-400 text-sm">Painel de Atendimento</p>
+                </div>
+                
+                <div class="p-6 space-y-4">
+                    <!-- Status Display -->
+                    <div id="barber-status-display" class="bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-center font-semibold mb-6">
+                        <span class="inline-block w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                        Disponível para Cortes
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <button onclick="simulateFinishCut()" class="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow transition transform hover:scale-[1.02] flex items-center justify-center">
+                        <i class="fa-solid fa-check-double mr-2"></i> Finalizar Corte Atual
+                    </button>
+
+                    <button onclick="openPauseModal()" id="btn-pause-toggle" class="w-full py-4 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-bold shadow transition transform hover:scale-[1.02] flex items-center justify-center">
+                        <i class="fa-solid fa-coffee mr-2"></i> Pausar Atendimento
+                    </button>
+                </div>
+                
+                <div class="px-6 pb-6 text-center text-xs text-gray-400">
+                    <p>Ao clicar em "Finalizar", o tempo é registrado para o cálculo de média.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- VIEW 3: CLIENT APP (STATUS VISIBILITY)    -->
+        <!-- ========================================== -->
+        <div id="view-client" class="view-section hidden max-w-md mx-auto">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-1">Agendar Horário</h2>
+                <p class="text-gray-500 text-sm">Escolha seu profissional preferido.</p>
+            </div>
+
+            <div class="space-y-4" id="client-barber-list">
+                <!-- Barbeiro 1 (Dinâmico) -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
+                    <div class="flex items-center">
+                        <div class="relative">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" class="w-14 h-14 rounded-full bg-gray-100">
+                            <!-- Status Dot -->
+                            <div id="client-status-dot-0" class="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="font-bold text-gray-800">João Silva</h3>
+                            <p class="text-xs text-gray-500">Mestre Barbeiro</p>
+                            
+                            <!-- Mensagem de Status para o Cliente -->
+                            <div id="client-status-text-0" class="mt-1 text-xs font-semibold text-green-600">
+                                Disponível
+                            </div>
+                        </div>
+                    </div>
+                    <button id="client-btn-0" class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-black transition">
+                        Agendar
+                    </button>
                 </div>
 
-                <!-- List Barbers -->
-                <h3 class="text-lg font-bold text-white mb-4">Equipe Cadastrada</h3>
-                <div id="adminBarberList" class="space-y-3">
-                    <!-- Injected via JS -->
+                <!-- Barbeiro 2 (Estático/Exemplo) -->
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between opacity-70">
+                    <div class="flex items-center">
+                        <div class="relative">
+                            <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Aneka" class="w-14 h-14 rounded-full bg-gray-100">
+                            <div class="absolute bottom-0 right-0 w-4 h-4 bg-gray-400 border-2 border-white rounded-full"></div>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="font-bold text-gray-800">Ana Costa</h3>
+                            <p class="text-xs text-gray-500">Barbeira</p>
+                            <div class="mt-1 text-xs font-semibold text-gray-500">
+                                Folga
+                            </div>
+                        </div>
+                    </div>
+                    <button disabled class="px-4 py-2 bg-gray-200 text-gray-400 text-sm rounded-lg cursor-not-allowed">
+                        Indisponível
+                    </button>
                 </div>
             </div>
         </div>
 
     </main>
 
-    <!-- CONFIRMATION MODAL 1: CHANGE BARBER -->
-    <div id="modalConfirmChange" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 fade-in">
-        <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-sm text-center">
-            <i class="fa-solid fa-triangle-exclamation text-amber-500 text-4xl mb-4"></i>
-            <h3 class="text-xl font-bold text-white mb-2">Sair da Fila Atual?</h3>
-            <p class="text-slate-300 text-sm mb-6">Você já está na fila de <strong id="currentBarberNameModal" class="text-white">--</strong>. Se mudar de barbeiro, você perderá sua vez.</p>
-            <div class="flex gap-3">
-                <button onclick="closeModal('modalConfirmChange')" class="flex-1 py-3 rounded-lg bg-slate-700 text-white hover:bg-slate-600 font-medium">Manter minha vez</button>
-                <button onclick="openFinalWarning()" class="flex-1 py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-500">Sair da fila</button>
+    <!-- MODAL DE PAUSA (BARBEIRO) -->
+    <div id="pause-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100">
+            <div class="bg-orange-500 p-4 text-white text-center">
+                <h3 class="font-bold text-lg">Motivo da Pausa</h3>
+                <p class="text-xs opacity-90">Selecione o motivo para justificar sua ausência.</p>
+            </div>
+            <div class="p-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Selecione:</label>
+                <div class="relative">
+                    <select id="pause-reason" class="block w-full pl-3 pr-10 py-3 text-base border-gray-300 bg-gray-50 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm rounded-md border">
+                        <option value="lunch">Almoço</option>
+                        <option value="snack">Lanche</option>
+                        <option value="bathroom">Banheiro</option>
+                        <option value="out">Saída do Salão (Banco/Resol.)</option>
+                        <option value="other">Outros</option>
+                    </select>
+                </div>
+                
+                <div class="mt-6 flex space-x-3">
+                    <button onclick="closePauseModal()" class="flex-1 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium">Cancelar</button>
+                    <button onclick="confirmPause()" class="flex-1 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 font-medium shadow-md">Confirmar Pausa</button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- CONFIRMATION MODAL 2: FINAL WARNING -->
-    <div id="modalFinalWarning" class="fixed inset-0 bg-black/90 backdrop-blur-sm hidden items-center justify-center z-[60] fade-in">
-        <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl border-2 border-red-500/50 w-full max-w-sm text-center">
-            <i class="fa-solid fa-ban text-red-500 text-4xl mb-4"></i>
-            <h3 class="text-xl font-bold text-white mb-2">Último Aviso!</h3>
-            <p class="text-slate-300 text-sm mb-6">Se você sair agora e quiser voltar depois, será o <strong>último da fila</strong>. Tem certeza?</p>
-            <div class="flex gap-3">
-                <button onclick="closeModal('modalFinalWarning')" class="flex-1 py-3 rounded-lg bg-slate-700 text-white hover:bg-slate-600 font-medium">Não, quero ficar</button>
-                <button onclick="confirmSwitchBarber()" class="flex-1 py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-500">Sim, sair da fila</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Login Modal -->
-    <div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 fade-in">
-        <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-xs text-center">
-            <i class="fa-solid fa-lock text-amber-500 text-3xl mb-4"></i>
-            <h3 class="text-xl font-bold text-white mb-2">Acesso Restrito</h3>
-            <p class="text-slate-400 text-sm mb-6">Digite seu PIN ou a Senha Mestra</p>
-            <input type="password" id="pinInput" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white text-center text-2xl tracking-widest mb-4 focus:border-amber-500 focus:outline-none">
-            <div class="flex gap-2">
-                <button onclick="closeLoginModal()" class="flex-1 py-3 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600">Voltar</button>
-                <button onclick="processLogin()" class="flex-1 py-3 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-500">Entrar</button>
-            </div>
-        </div>
-    </div>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // --- CONFIG ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- 1. CONFIGURAÇÃO DE ESTADO E DADOS ---
         
-        const userFirebaseConfig = {
-            apiKey: "AIzaSyCyTJVlgvkLa2-SUNaxAlOiTezcXfjiP64",
-            authDomain: "seu-vizinho-barbearia.firebaseapp.com",
-            projectId: "seu-vizinho-barbearia",
-            storageBucket: "seu-vizinho-barbearia.firebasestorage.app",
-            messagingSenderId: "25346983688",
-            appId: "1:25346983688:web:727308786e34874ae50ebd"
+        // Estado simulado do sistema
+        const state = {
+            barbers: [
+                { id: 0, name: 'João Silva', status: 'active', pauseReason: null, cutsToday: 8, noShows: 1, avgTime: 35 },
+                { id: 1, name: 'Marcos Souza', status: 'active', pauseReason: null, cutsToday: 10, noShows: 0, avgTime: 28 },
+                { id: 2, name: 'Elias Neto', status: 'active', pauseReason: null, cutsToday: 6, noShows: 2, avgTime: 42 }
+            ],
+            // Dados históricos para os gráficos
+            history: {
+                dates: ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'],
+                completed: [
+                    [5, 8, 7, 9, 12, 15], // João
+                    [6, 7, 8, 10, 11, 14], // Marcos
+                    [4, 5, 5, 7, 8, 10]   // Elias
+                ],
+                noShows: [
+                    [0, 1, 0, 0, 2, 1], // João
+                    [0, 0, 1, 0, 0, 0], // Marcos
+                    [1, 0, 1, 1, 0, 1]  // Elias
+                ],
+                avgTimes: [
+                    [35, 34, 36, 33, 35, 32], // João
+                    [30, 29, 28, 28, 30, 27], // Marcos
+                    [45, 42, 44, 40, 42, 40]  // Elias
+                ]
+            }
         };
 
-        let firebaseConfig;
-        let useInternalPath = false;
-
-        if (typeof __firebase_config !== 'undefined') {
-            firebaseConfig = JSON.parse(__firebase_config);
-            useInternalPath = true;
-        } else {
-            firebaseConfig = userFirebaseConfig;
-            useInternalPath = false;
-        }
+        // --- 2. LÓGICA DE NAVEGAÇÃO ---
         
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+        function switchView(viewName) {
+            // Esconder todas as views
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            
+            // Remover classe ativa dos botões
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('nav-active', 'text-blue-600');
+                el.classList.add('text-gray-500');
+            });
 
-        // Constants
-        const QUEUE_COL = 'queue';
-        const BARBERS_COL = 'barbers';
-        const MASTER_PIN = "9999"; 
-        const LOCAL_STORAGE_KEY = 'bq_my_ticket'; // Local Storage Key for persistence
+            // Mostrar view selecionada
+            document.getElementById(`view-${viewName}`).classList.remove('hidden');
+            
+            // Ativar botão
+            const btn = document.getElementById(`btn-${viewName}`);
+            btn.classList.add('nav-active', 'text-blue-600');
+            btn.classList.remove('text-gray-500');
 
-        // State
-        let currentUser = null;
-        let queueData = [];
-        let barbersData = [];
-        let selectedBarber = null; 
-        let loggedInMode = null; 
-        let loggedInBarberId = null; 
-        let myTicket = null; // Stores { id, barberId, name } if user is in queue
-        let pendingBarberSwitch = null; // Stores target barber ID during confirmation
-
-        // Helper Functions for Paths
-        function getCollection(colName) {
-            if (useInternalPath) return collection(db, 'artifacts', appId, 'public', 'data', colName);
-            return collection(db, colName);
-        }
-        function getDocRef(colName, docId) {
-            if (useInternalPath) return doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
-            return doc(db, colName, docId);
-        }
-
-        // --- AUTH ---
-        async function initAuth() {
-            try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (error) { 
-                console.error("Auth", error);
-                // DIAGNOSTIC FOR USER: Check for disabled Anonymous auth
-                if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
-                    alert("⚠️ CONFIGURAÇÃO DO FIREBASE NECESSÁRIA:\n\nO Login Anônimo não está ativado no seu Firebase Console.\n\nCOMO RESOLVER:\n1. Vá no Firebase Console > Authentication > Sign-in method\n2. Ative o provedor 'Anonymous' (Anônimo).");
-                }
+            // Se for admin, renderizar gráficos (re-renderizar para garantir tamanho correto)
+            if(viewName === 'admin') {
+                renderCharts();
+                updateAdminTable();
+            }
+            // Se for cliente, atualizar lista
+            if(viewName === 'client') {
+                updateClientView();
             }
         }
 
-        onAuthStateChanged(auth, (user) => {
-            currentUser = user;
-            if (user) {
-                // Restore local ticket on load
-                const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-                if (stored) {
-                    try { myTicket = JSON.parse(stored); } catch(e) { localStorage.removeItem(LOCAL_STORAGE_KEY); }
-                }
-                startListeners();
+        // --- 3. LÓGICA DO BARBEIRO (PAUSA) ---
+
+        const modal = document.getElementById('pause-modal');
+        const statusDisplay = document.getElementById('barber-status-display');
+        const pauseBtn = document.getElementById('btn-pause-toggle');
+        const selectReason = document.getElementById('pause-reason');
+
+        // Simula o barbeiro João (index 0)
+        let currentBarberIndex = 0; 
+
+        function openPauseModal() {
+            // Se já estiver pausado, a ação é "Retomar"
+            if (state.barbers[currentBarberIndex].status === 'paused') {
+                resumeWork();
+            } else {
+                modal.classList.remove('hidden');
             }
+        }
+
+        function closePauseModal() {
+            modal.classList.add('hidden');
+        }
+
+        function confirmPause() {
+            const reason = selectReason.value;
+            const reasonText = selectReason.options[selectReason.selectedIndex].text;
+            
+            // Atualizar Estado
+            state.barbers[currentBarberIndex].status = 'paused';
+            state.barbers[currentBarberIndex].pauseReason = reasonText;
+
+            // Atualizar UI Barbeiro
+            updateBarberUI(true, reasonText);
+            
+            // Fechar modal
+            closePauseModal();
+            
+            alert(`Pausa iniciada: ${reasonText}. O cliente verá apenas que você está pausado.`);
+        }
+
+        function resumeWork() {
+            state.barbers[currentBarberIndex].status = 'active';
+            state.barbers[currentBarberIndex].pauseReason = null;
+            updateBarberUI(false);
+        }
+
+        function updateBarberUI(isPaused, reason = "") {
+            if (isPaused) {
+                statusDisplay.className = "bg-orange-100 border border-orange-200 text-orange-700 px-4 py-3 rounded-lg text-center font-semibold mb-6";
+                statusDisplay.innerHTML = `<i class="fa-solid fa-pause mr-2"></i> EM PAUSA (${reason})`;
+                
+                pauseBtn.innerHTML = `<i class="fa-solid fa-play mr-2"></i> Retomar Atendimento`;
+                pauseBtn.classList.remove('bg-orange-500', 'hover:bg-orange-600');
+                pauseBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            } else {
+                statusDisplay.className = "bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-center font-semibold mb-6";
+                statusDisplay.innerHTML = `<span class="inline-block w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></span> Disponível para Cortes`;
+                
+                pauseBtn.innerHTML = `<i class="fa-solid fa-coffee mr-2"></i> Pausar Atendimento`;
+                pauseBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                pauseBtn.classList.add('bg-orange-500', 'hover:bg-orange-600');
+            }
+        }
+
+        function simulateFinishCut() {
+            if (state.barbers[currentBarberIndex].status === 'paused') {
+                alert("Você está em pausa! Retome o atendimento para finalizar cortes.");
+                return;
+            }
+            
+            // Simulação simples: aumenta a contagem
+            state.barbers[currentBarberIndex].cutsToday++;
+            // Simula um pequeno ajuste no tempo médio
+            const variance = Math.floor(Math.random() * 5) - 2; 
+            state.barbers[currentBarberIndex].avgTime += variance;
+
+            alert("Corte finalizado! Dados enviados para o painel Admin.");
+            
+            // Se estivesse no admin, atualizaria ao trocar de aba.
+        }
+
+        // --- 4. LÓGICA DO CLIENTE ---
+
+        function updateClientView() {
+            // Focando apenas no barbeiro dinâmico (João) para demonstrar a funcionalidade
+            const barber = state.barbers[0]; // João
+            
+            const dot = document.getElementById('client-status-dot-0');
+            const statusText = document.getElementById('client-status-text-0');
+            const btn = document.getElementById('client-btn-0');
+
+            if (barber.status === 'paused') {
+                // Estado Pausado (Motivo oculto para o cliente)
+                dot.className = "absolute bottom-0 right-0 w-4 h-4 bg-orange-500 border-2 border-white rounded-full";
+                statusText.innerHTML = `<i class="fa-solid fa-clock text-orange-500 mr-1"></i> Em Pausa (Retorno em breve)`;
+                statusText.className = "mt-1 text-xs font-semibold text-orange-600";
+                
+                btn.disabled = true;
+                btn.className = "px-4 py-2 bg-gray-300 text-gray-500 text-sm rounded-lg cursor-not-allowed";
+                btn.innerText = "Aguarde";
+            } else {
+                // Estado Ativo
+                dot.className = "absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full";
+                statusText.innerHTML = "Disponível";
+                statusText.className = "mt-1 text-xs font-semibold text-green-600";
+                
+                btn.disabled = false;
+                btn.className = "px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-black transition";
+                btn.innerText = "Agendar";
+            }
+        }
+
+        // --- 5. LÓGICA DO DASHBOARD ADMIN (CHART.JS) ---
+        
+        let chart1, chart2, chart3;
+
+        function updateAdminTable() {
+            const tbody = document.getElementById('admin-summary-table');
+            tbody.innerHTML = '';
+            
+            state.barbers.forEach(b => {
+                let statusBadge = '';
+                if(b.status === 'active') statusBadge = '<span class="px-2 py-1 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Trabalhando</span>';
+                else statusBadge = `<span class="px-2 py-1 text-xs font-semibold text-orange-800 bg-orange-100 rounded-full">Pausa: ${b.pauseReason}</span>`;
+
+                tbody.innerHTML += `
+                    <tr>
+                        <td class="px-6 py-4 font-medium text-gray-900">${b.name}</td>
+                        <td class="px-6 py-4 text-gray-500">${b.cutsToday}</td>
+                        <td class="px-6 py-4 text-gray-500 text-red-500 font-bold">${b.noShows}</td>
+                        <td class="px-6 py-4 text-gray-500">${b.avgTime} min</td>
+                        <td class="px-6 py-4">${statusBadge}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderCharts() {
+            const colors = {
+                blue: 'rgba(59, 130, 246, 0.7)',
+                blueBorder: 'rgb(59, 130, 246)',
+                green: 'rgba(16, 185, 129, 0.7)',
+                greenBorder: 'rgb(16, 185, 129)',
+                purple: 'rgba(139, 92, 246, 0.7)',
+                purpleBorder: 'rgb(139, 92, 246)',
+                red: 'rgba(239, 68, 68, 0.7)',
+            };
+
+            // Destruir gráficos anteriores se existirem para evitar sobreposição ao redimensionar/trocar aba
+            if(chart1) chart1.destroy();
+            if(chart2) chart2.destroy();
+            if(chart3) chart3.destroy();
+
+            // GRÁFICO 1: Cortes Concluídos (Bar Chart Grouped)
+            const ctx1 = document.getElementById('chartCompleted').getContext('2d');
+            chart1 = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: state.history.dates,
+                    datasets: [
+                        { label: 'João', data: state.history.completed[0], backgroundColor: colors.blue },
+                        { label: 'Marcos', data: state.history.completed[1], backgroundColor: colors.green },
+                        { label: 'Elias', data: state.history.completed[2], backgroundColor: colors.purple }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // GRÁFICO 2: Faltas (Bar Chart)
+            const ctx2 = document.getElementById('chartNoShows').getContext('2d');
+            chart2 = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels: state.history.dates,
+                    datasets: [
+                        { label: 'João', data: state.history.noShows[0], backgroundColor: colors.blue },
+                        { label: 'Marcos', data: state.history.noShows[1], backgroundColor: colors.green },
+                        { label: 'Elias', data: state.history.noShows[2], backgroundColor: colors.purple }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                }
+            });
+
+            // GRÁFICO 3: Tempo Médio (Line Chart)
+            // Lógica: Média das diferenças entre cliques em finalizar
+            const ctx3 = document.getElementById('chartAvgTime').getContext('2d');
+            chart3 = new Chart(ctx3, {
+                type: 'line',
+                data: {
+                    labels: state.history.dates,
+                    datasets: [
+                        { 
+                            label: 'João', 
+                            data: state.history.avgTimes[0], 
+                            borderColor: colors.blueBorder,
+                            backgroundColor: colors.blue,
+                            tension: 0.3,
+                            fill: false
+                        },
+                        { 
+                            label: 'Marcos', 
+                            data: state.history.avgTimes[1], 
+                            borderColor: colors.greenBorder,
+                            backgroundColor: colors.green,
+                            tension: 0.3,
+                            fill: false
+                        },
+                        { 
+                            label: 'Elias', 
+                            data: state.history.avgTimes[2], 
+                            borderColor: colors.purpleBorder,
+                            backgroundColor: colors.purple,
+                            tension: 0.3,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: false, title: { display: true, text: 'Minutos' } } }
+                }
+            });
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', () => {
+            switchView('admin'); // Inicia no admin
         });
-
-        // --- DATA LISTENERS ---
-        function startListeners() {
-            // Listen to Barbers
-            onSnapshot(getCollection(BARBERS_COL), (snapshot) => {
-                const temp = [];
-                snapshot.forEach(doc => temp.push({ id: doc.id, ...doc.data() }));
-                barbersData = temp;
-                renderBarberGrid(); 
-                if(loggedInMode === 'admin') renderAdminList(); 
-                
-                if (selectedBarber && !loggedInMode) {
-                    const freshBarber = barbersData.find(b => b.id === selectedBarber.id);
-                    if (!freshBarber || !freshBarber.isActive) {
-                        alert("Este barbeiro encerrou o expediente.");
-                        goHome();
-                    }
-                }
-            }, (error) => {
-                console.error("Barber Listener Error:", error);
-                if (error.code === 'permission-denied') {
-                    alert("⚠️ CONFIGURAÇÃO DO FIREBASE NECESSÁRIA:\n\nPermissão Negada no Banco de Dados (Firestore).\n\nCOMO RESOLVER:\n1. Vá no Firebase Console > Firestore Database > Rules\n2. Altere as regras para:\n\nallow read, write: if request.auth != null;");
-                }
-            });
-
-            // Listen to Queue
-            onSnapshot(getCollection(QUEUE_COL), (snapshot) => {
-                const temp = [];
-                snapshot.forEach(doc => temp.push({ id: doc.id, ...doc.data() }));
-                
-                queueData = temp
-                    .filter(item => item.status !== 'done' && item.status !== 'cancelled')
-                    .sort((a, b) => a.joinedAt - b.joinedAt);
-
-                checkMyTicketStatus(); // Verify if my ticket is still valid
-                if (selectedBarber) renderQueue();
-                renderBarberGrid(); 
-            });
-        }
-
-        // --- TICKET VALIDATION ---
-        function checkMyTicketStatus() {
-            if (!myTicket) {
-                document.getElementById('homeActiveTicketNotice').classList.add('hidden');
-                return;
-            }
-
-            // Check if ticket exists in current live data
-            const ticketInDb = queueData.find(q => q.id === myTicket.id);
-            
-            if (!ticketInDb) {
-                // Ticket disappeared (done or cancelled remotely)
-                // Only alert if we aren't the one who just cancelled it
-                if (!pendingBarberSwitch && !loggedInMode) { 
-                    // Optional: Show a notification "Your turn is over or was cancelled"
-                }
-                clearMyTicket();
-            } else {
-                // Ticket exists, update display on Home
-                const barber = barbersData.find(b => b.id === myTicket.barberId);
-                if (barber) {
-                    document.getElementById('homeActiveTicketNotice').classList.remove('hidden');
-                    document.getElementById('homeTicketBarberName').innerText = barber.name;
-                }
-            }
-        }
-
-        function clearMyTicket() {
-            myTicket = null;
-            localStorage.removeItem(LOCAL_STORAGE_KEY);
-            document.getElementById('homeActiveTicketNotice').classList.add('hidden');
-            if (selectedBarber && !loggedInMode) renderQueue(); // Refresh UI to show form again
-        }
-
-        // --- UI NAVIGATION ---
-        window.goHome = () => {
-            if (loggedInMode) return; 
-            selectedBarber = null;
-            document.getElementById('viewSelection').classList.remove('hidden');
-            document.getElementById('viewQueue').classList.add('hidden');
-            document.getElementById('viewAdmin').classList.add('hidden');
-            document.getElementById('headerContext').innerText = "";
-        };
-        
-        window.returnToMyQueue = () => {
-            if (myTicket) {
-                selectBarber(myTicket.barberId);
-            }
-        };
-
-        window.selectBarber = (barberId) => {
-            // CHECK LOCK: If user has a ticket for a DIFFERENT barber
-            if (!loggedInMode && myTicket && myTicket.barberId !== barberId) {
-                const currentBarber = barbersData.find(b => b.id === myTicket.barberId);
-                const targetBarber = barbersData.find(b => b.id === barberId);
-                
-                document.getElementById('currentBarberNameModal').innerText = currentBarber ? currentBarber.name : "Outro";
-                
-                pendingBarberSwitch = barberId; // Store intended destination
-                document.getElementById('modalConfirmChange').classList.remove('hidden');
-                return;
-            }
-
-            const barber = barbersData.find(b => b.id === barberId);
-            if (!barber) return;
-
-            selectedBarber = barber;
-            document.getElementById('viewSelection').classList.add('hidden');
-            document.getElementById('viewQueue').classList.remove('hidden');
-            
-            document.getElementById('queueBarberName').innerText = barber.name;
-            document.getElementById('displayBarberName').innerText = barber.name;
-            document.getElementById('headerContext').innerText = `Vendo: ${barber.name}`;
-
-            renderQueue();
-        };
-
-        // --- MODAL LOGIC FOR SWITCHING ---
-        window.closeModal = (id) => {
-            document.getElementById(id).classList.add('hidden');
-            if (id === 'modalConfirmChange') pendingBarberSwitch = null;
-        };
-
-        window.openFinalWarning = () => {
-            document.getElementById('modalConfirmChange').classList.add('hidden');
-            document.getElementById('modalFinalWarning').classList.remove('hidden');
-        };
-
-        window.confirmSwitchBarber = async () => {
-            document.getElementById('modalFinalWarning').classList.add('hidden');
-            
-            if (myTicket) {
-                // Cancel old ticket
-                await updateStatus(myTicket.id, 'cancelled');
-                clearMyTicket();
-            }
-            
-            // Navigate to new barber
-            if (pendingBarberSwitch) {
-                const targetId = pendingBarberSwitch;
-                pendingBarberSwitch = null;
-                selectBarber(targetId);
-            }
-        };
-        
-        window.confirmExitQueue = async () => {
-            if (confirm("Deseja realmente sair da fila? Você perderá sua posição.")) {
-                 if (myTicket) {
-                    await updateStatus(myTicket.id, 'cancelled');
-                    clearMyTicket();
-                }
-            }
-        };
-
-        // --- QUEUE LOGIC ---
-        window.addToQueue = async () => {
-            const name = document.getElementById('clientName').value.trim();
-            if (!name || !selectedBarber) return;
-            
-            // Double check lock
-            if (myTicket) { alert("Você já está em uma fila!"); return; }
-
-            const btn = document.getElementById('joinBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
-
-            try {
-                const docRef = await addDoc(getCollection(QUEUE_COL), {
-                    name: name,
-                    status: 'waiting',
-                    joinedAt: Date.now(),
-                    createdBy: currentUser.uid,
-                    barberId: selectedBarber.id 
-                });
-                
-                // SAVE TICKET LOCALLY
-                myTicket = { id: docRef.id, barberId: selectedBarber.id, name: name };
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(myTicket));
-
-                document.getElementById('clientName').value = '';
-                const msg = document.getElementById('joinMessage');
-                msg.classList.remove('hidden');
-                setTimeout(() => msg.classList.add('hidden'), 3000);
-                
-                renderQueue(); // Update UI immediately
-
-            } catch (e) { console.error(e); alert("Erro ao entrar."); }
-            finally { 
-                btn.disabled = false; 
-                btn.innerHTML = '<i class="fa-solid fa-ticket"></i> Pegar Senha';
-            }
-        };
-
-        // --- ADMIN & BARBER LOGIN ---
-        window.openLoginModal = () => {
-            document.getElementById('loginModal').classList.remove('hidden');
-            document.getElementById('pinInput').value = '';
-            document.getElementById('pinInput').focus();
-        };
-
-        window.closeLoginModal = () => {
-            document.getElementById('loginModal').classList.add('hidden');
-        };
-
-        window.processLogin = () => {
-            const pin = document.getElementById('pinInput').value;
-            
-            if (pin === MASTER_PIN) {
-                loggedInMode = 'admin';
-                document.getElementById('viewSelection').classList.add('hidden');
-                document.getElementById('viewQueue').classList.add('hidden');
-                document.getElementById('viewAdmin').classList.remove('hidden');
-                document.getElementById('adminBtn').classList.add('hidden');
-                document.getElementById('logoutBtn').classList.remove('hidden');
-                document.getElementById('headerContext').innerText = "MODO ADMIN";
-                closeLoginModal();
-                renderAdminList();
-                return;
-            }
-
-            const barber = barbersData.find(b => b.pin === pin);
-            if (barber) {
-                loggedInMode = 'barber';
-                loggedInBarberId = barber.id;
-                selectedBarber = barber;
-                
-                document.getElementById('viewSelection').classList.add('hidden');
-                document.getElementById('viewQueue').classList.remove('hidden');
-                document.getElementById('viewAdmin').classList.add('hidden');
-                document.getElementById('customerPanel').classList.add('hidden'); 
-                document.getElementById('adminBtn').classList.add('hidden');
-                document.getElementById('logoutBtn').classList.remove('hidden');
-                document.getElementById('headerContext').innerText = `Painel: ${barber.name}`;
-                document.getElementById('displayBarberName').innerText = barber.name + " (Você)";
-
-                closeLoginModal();
-                renderQueue(); 
-                return;
-            }
-
-            alert("PIN Incorreto ou Barbeiro não encontrado.");
-        };
-
-        window.logout = () => {
-            loggedInMode = null;
-            loggedInBarberId = null;
-            selectedBarber = null;
-            
-            document.getElementById('adminBtn').classList.remove('hidden');
-            document.getElementById('logoutBtn').classList.add('hidden');
-            document.getElementById('customerPanel').classList.remove('hidden');
-            
-            goHome();
-        };
-
-        // --- ADMIN FUNCTIONS ---
-        window.addBarber = async () => {
-            const name = document.getElementById('newBarberName').value.trim();
-            const pin = document.getElementById('newBarberPin').value.trim();
-            if (!name || !pin) return alert("Preencha nome e PIN");
-
-            try {
-                await addDoc(getCollection(BARBERS_COL), {
-                    name, pin, isActive: true, createdAt: Date.now()
-                });
-                document.getElementById('newBarberName').value = '';
-                document.getElementById('newBarberPin').value = '';
-            } catch(e) { alert("Erro ao criar."); }
-        };
-
-        window.toggleBarberStatus = async (id, currentStatus) => {
-            try {
-                await updateDoc(getDocRef(BARBERS_COL, id), { isActive: !currentStatus });
-            } catch(e) { console.error(e); }
-        };
-
-        window.deleteBarber = async (id) => {
-            if(confirm("Tem certeza? Isso não apaga o histórico, mas remove o acesso.")) {
-                await deleteDoc(getDocRef(BARBERS_COL, id));
-            }
-        };
-
-        function renderAdminList() {
-            const container = document.getElementById('adminBarberList');
-            container.innerHTML = '';
-            
-            if (barbersData.length === 0) {
-                container.innerHTML = '<p class="text-slate-500">Nenhum barbeiro cadastrado.</p>';
-                return;
-            }
-
-            barbersData.forEach(b => {
-                const item = document.createElement('div');
-                item.className = 'bg-slate-700 p-4 rounded-lg flex justify-between items-center';
-                item.innerHTML = `
-                    <div>
-                        <div class="font-bold text-white text-lg">${b.name}</div>
-                        <div class="text-xs text-slate-400">PIN: ${b.pin}</div>
-                    </div>
-                    <div class="flex items-center gap-4">
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs uppercase font-bold ${b.isActive ? 'text-emerald-400' : 'text-slate-500'}">${b.isActive ? 'Ativo' : 'Inativo'}</span>
-                            <div class="relative inline-block w-10 mr-2 align-middle select-none transition duration-200 ease-in">
-                                <input type="checkbox" name="toggle" id="toggle-${b.id}" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer border-slate-500 transition-all duration-300 ${b.isActive ? 'right-0 border-emerald-500' : 'left-0'}" 
-                                onclick="toggleBarberStatus('${b.id}', ${b.isActive})"/>
-                                <label for="toggle-${b.id}" class="toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${b.isActive ? 'bg-emerald-500' : 'bg-slate-600'}"></label>
-                            </div>
-                        </div>
-                        <button onclick="deleteBarber('${b.id}')" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                `;
-                container.appendChild(item);
-            });
-        }
-
-        // --- RENDERERS ---
-        function renderBarberGrid() {
-            const grid = document.getElementById('barberGrid');
-            const activeBarbers = barbersData.filter(b => b.isActive);
-            grid.innerHTML = '';
-
-            if (activeBarbers.length === 0) {
-                grid.innerHTML = `<div class="col-span-full text-center py-10">
-                    <i class="fa-solid fa-store-slash text-4xl text-slate-600 mb-4"></i>
-                    <p class="text-slate-400">Nenhum profissional disponível no momento.</p>
-                </div>`;
-                return;
-            }
-
-            activeBarbers.forEach(b => {
-                const count = queueData.filter(q => q.barberId === b.id && q.status === 'waiting').length;
-                const time = count * 20;
-
-                // Check if this is the barber I'm queued for to add visual indicator
-                const isMyBarber = myTicket && myTicket.barberId === b.id;
-
-                const card = document.createElement('div');
-                card.onclick = () => selectBarber(b.id);
-                card.className = `bg-slate-800 border ${isMyBarber ? 'border-amber-500 ring-2 ring-amber-500/30' : 'border-slate-700 hover:border-amber-500'} p-6 rounded-2xl cursor-pointer transition transform hover:scale-105 shadow-lg group relative overflow-hidden`;
-                
-                card.innerHTML = `
-                    ${isMyBarber ? '<div class="absolute top-0 right-0 bg-amber-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-bl-lg">Sua Fila</div>' : ''}
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="bg-slate-700 p-3 rounded-full ${isMyBarber ? 'text-amber-500 bg-amber-500/20' : 'text-amber-500 group-hover:bg-amber-500 group-hover:text-white'} transition">
-                            <i class="fa-solid fa-user-tie text-2xl"></i>
-                        </div>
-                        <div class="text-right">
-                            <span class="block text-2xl font-bold text-white">${count}</span>
-                            <span class="text-xs text-slate-500 uppercase">Na Fila</span>
-                        </div>
-                    </div>
-                    <h3 class="text-xl font-bold text-white mb-1">${b.name}</h3>
-                    <p class="text-emerald-400 text-sm font-medium"><i class="fa-regular fa-clock mr-1"></i> ~${time} min espera</p>
-                `;
-                grid.appendChild(card);
-            });
-        }
-
-        function renderQueue() {
-            if (!selectedBarber) return;
-
-            const listContainer = document.getElementById('queueList');
-            const activeContainer = document.getElementById('activeCutContainer');
-            
-            const myQueue = queueData.filter(item => item.barberId === selectedBarber.id);
-            const activeClient = myQueue.find(item => item.status === 'cutting');
-            const waitingClients = myQueue.filter(item => item.status === 'waiting');
-
-            document.getElementById('statWaiting').innerText = waitingClients.length;
-            document.getElementById('statWaitingMobile').innerText = waitingClients.length;
-            const time = waitingClients.length * 20;
-            document.getElementById('statAvgMobile').innerText = time + "m";
-            document.getElementById('statAvgDesktop').innerText = time;
-
-            // --- USER STATUS LOGIC ---
-            // Determine if user is in THIS queue
-            const amInThisQueue = myTicket && myTicket.barberId === selectedBarber.id && waitingClients.some(c => c.id === myTicket.id);
-
-            // Toggle Form vs Status
-            if (!loggedInMode) {
-                if (amInThisQueue) {
-                    document.getElementById('joinFormContainer').classList.add('hidden');
-                    document.getElementById('activeTicketDisplay').classList.remove('hidden');
-                    // Find position
-                    const myPos = waitingClients.findIndex(c => c.id === myTicket.id) + 1;
-                    document.getElementById('myPositionDisplay').innerText = myPos + "º";
-                } else {
-                    document.getElementById('joinFormContainer').classList.remove('hidden');
-                    document.getElementById('activeTicketDisplay').classList.add('hidden');
-                }
-            }
-
-            if (activeClient) {
-                activeContainer.classList.remove('hidden');
-                document.getElementById('activeClientName').innerText = activeClient.name;
-                
-                const controls = activeContainer.querySelectorAll('.barber-controls');
-                controls.forEach(c => {
-                    if (loggedInMode === 'admin' || (loggedInMode === 'barber' && loggedInBarberId === selectedBarber.id)) {
-                        c.classList.remove('hidden');
-                    } else {
-                        c.classList.add('hidden');
-                    }
-                });
-                
-                window.finishCut = async () => updateStatus(activeClient.id, 'done');
-            } else {
-                activeContainer.classList.add('hidden');
-            }
-
-            listContainer.innerHTML = '';
-            if (waitingClients.length === 0 && !activeClient) {
-                listContainer.innerHTML = `
-                    <div class="flex flex-col items-center justify-center h-64 text-slate-600 fade-in">
-                        <i class="fa-solid fa-mug-hot text-5xl mb-4 opacity-30"></i>
-                        <p class="text-lg">Tudo calmo para ${selectedBarber.name}.</p>
-                    </div>
-                `;
-            } else {
-                waitingClients.forEach((client, index) => {
-                    // Check if this is ME
-                    const isMe = myTicket && myTicket.id === client.id;
-
-                    const card = document.createElement('div');
-                    // Add special class if it is me
-                    card.className = `bg-slate-800 border ${isMe ? 'border-amber-500 status-mine' : 'border-slate-700'} rounded-xl p-4 mb-3 flex justify-between items-center shadow-sm fade-in status-waiting transition-all`;
-                    
-                    const showControls = loggedInMode === 'admin' || (loggedInMode === 'barber' && loggedInBarberId === selectedBarber.id);
-                    
-                    card.innerHTML = `
-                        <div class="flex items-center gap-4 flex-1">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-full ${isMe ? 'bg-amber-500 text-white shadow-lg' : 'bg-slate-700 text-slate-400'} font-bold relative">
-                                ${index + 1}
-                                ${isMe ? '<div class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>' : ''}
-                            </div>
-                            <div>
-                                <h4 class="font-bold text-lg text-white">${client.name} ${isMe ? '<span class="text-xs bg-amber-500 text-white px-1.5 rounded ml-2">VOCÊ</span>' : ''}</h4>
-                                <span class="text-xs text-slate-500"><i class="fa-regular fa-clock"></i> ${new Date(client.joinedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                            </div>
-                        </div>
-                        ${showControls ? `
-                        <div class="flex gap-2 ml-4">
-                            <button onclick="callClient('${client.id}')" class="bg-amber-500 hover:bg-amber-600 text-white p-3 rounded-lg shadow"><i class="fa-solid fa-bell"></i></button>
-                            <button onclick="removeClient('${client.id}')" class="bg-slate-700 hover:bg-red-500/80 text-white p-3 rounded-lg"><i class="fa-solid fa-trash"></i></button>
-                        </div>` : ''}
-                    `;
-                    listContainer.appendChild(card);
-                });
-            }
-        }
-
-        // Global Actions
-        window.callClient = async (id) => {
-            if(confirm("Chamar cliente?")) updateStatus(id, 'cutting');
-        };
-        window.removeClient = async (id) => {
-            if(confirm("Remover da fila?")) updateStatus(id, 'cancelled');
-        };
-
-        async function updateStatus(docId, newStatus) {
-            try { await updateDoc(getDocRef(QUEUE_COL, docId), { status: newStatus }); }
-            catch(e) { console.error(e); }
-        }
-
-        // Init
-        initAuth();
 
     </script>
 </body>
