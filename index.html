@@ -22,6 +22,7 @@
 
         .status-waiting { border-left: 4px solid #f59e0b; }
         .status-cutting { border-left: 4px solid #10b981; border: 2px solid #10b981; background-color: rgba(16, 185, 129, 0.1); }
+        .status-mine { border: 2px solid #f59e0b; background-color: rgba(245, 158, 11, 0.1); } /* Destaque do cliente */
         
         /* Toggle Switch CSS */
         .toggle-checkbox:checked {
@@ -47,7 +48,6 @@
             <h1 class="text-xl font-bold tracking-tight">Barber<span class="text-amber-500">Queue</span></h1>
         </div>
         <div class="flex gap-2 items-center">
-            <!-- Mostra qual barbeiro está selecionado ou logado -->
             <span id="headerContext" class="text-xs font-bold text-slate-400 uppercase tracking-widest hidden md:block"></span>
             
             <button onclick="openLoginModal()" id="adminBtn" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg transition border border-slate-600">
@@ -68,8 +68,19 @@
             <p class="text-slate-400 mb-8 text-center">Selecione quem vai te atender hoje.</p>
             
             <div id="barberGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 w-full max-w-4xl">
-                <!-- Barber Cards Injected Here -->
                 <div class="col-span-full text-center text-slate-500">Carregando barbeiros...</div>
+            </div>
+            
+            <!-- Aviso se o usuário já estiver em uma fila -->
+            <div id="homeActiveTicketNotice" class="hidden mt-8 p-4 bg-amber-500/10 border border-amber-500/50 rounded-xl flex items-center gap-3 max-w-md w-full animate-pulse cursor-pointer hover:bg-amber-500/20 transition" onclick="returnToMyQueue()">
+                <div class="bg-amber-500 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">
+                    <i class="fa-solid fa-ticket"></i>
+                </div>
+                <div class="text-left flex-1">
+                    <p class="text-sm text-slate-300">Você já está na fila de <strong id="homeTicketBarberName" class="text-white">--</strong></p>
+                    <p class="text-xs text-amber-500 font-bold">Clique para ver sua posição</p>
+                </div>
+                <i class="fa-solid fa-chevron-right text-slate-500"></i>
             </div>
         </div>
 
@@ -91,7 +102,8 @@
                         <p class="text-slate-400 text-sm">Fila de: <strong id="queueBarberName" class="text-white">--</strong></p>
                     </div>
 
-                    <div class="space-y-4">
+                    <!-- STATE 1: FORM (Visible only if NOT in queue) -->
+                    <div id="joinFormContainer" class="space-y-4">
                         <div>
                             <label class="block text-xs font-semibold text-slate-400 mb-1 uppercase tracking-wider">Seu Nome</label>
                             <input type="text" id="clientName" placeholder="Ex: João Silva" 
@@ -103,6 +115,22 @@
                         </button>
                     </div>
                     
+                    <!-- STATE 2: ACTIVE TICKET (Visible only if IN queue) -->
+                    <div id="activeTicketDisplay" class="hidden w-full bg-amber-500/10 border border-amber-500/30 rounded-xl p-6 text-center">
+                        <div class="text-amber-500 text-4xl mb-2"><i class="fa-solid fa-ticket-alt"></i></div>
+                        <h3 class="text-white font-bold text-lg mb-1">Você está na fila!</h3>
+                        <p class="text-slate-400 text-sm mb-4">Acompanhe sua posição no painel ao lado.</p>
+                        
+                        <div class="bg-slate-900/50 rounded-lg p-3 mb-4">
+                            <p class="text-xs text-slate-500 uppercase">Sua Posição</p>
+                            <p class="text-2xl font-bold text-white" id="myPositionDisplay">--</p>
+                        </div>
+                        
+                        <button onclick="confirmExitQueue()" class="text-red-400 hover:text-red-300 text-sm underline">
+                            Cancelar minha vez e sair
+                        </button>
+                    </div>
+
                     <div id="joinMessage" class="hidden text-center p-3 rounded-lg bg-emerald-500/20 text-emerald-400 text-sm font-medium fade-in">
                         <i class="fa-solid fa-check-circle mr-1"></i> Você entrou na fila!
                     </div>
@@ -203,6 +231,32 @@
 
     </main>
 
+    <!-- CONFIRMATION MODAL 1: CHANGE BARBER -->
+    <div id="modalConfirmChange" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 fade-in">
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-sm text-center">
+            <i class="fa-solid fa-triangle-exclamation text-amber-500 text-4xl mb-4"></i>
+            <h3 class="text-xl font-bold text-white mb-2">Sair da Fila Atual?</h3>
+            <p class="text-slate-300 text-sm mb-6">Você já está na fila de <strong id="currentBarberNameModal" class="text-white">--</strong>. Se mudar de barbeiro, você perderá sua vez.</p>
+            <div class="flex gap-3">
+                <button onclick="closeModal('modalConfirmChange')" class="flex-1 py-3 rounded-lg bg-slate-700 text-white hover:bg-slate-600 font-medium">Manter minha vez</button>
+                <button onclick="openFinalWarning()" class="flex-1 py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-500">Sair da fila</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONFIRMATION MODAL 2: FINAL WARNING -->
+    <div id="modalFinalWarning" class="fixed inset-0 bg-black/90 backdrop-blur-sm hidden items-center justify-center z-[60] fade-in">
+        <div class="bg-slate-800 p-6 rounded-2xl shadow-2xl border-2 border-red-500/50 w-full max-w-sm text-center">
+            <i class="fa-solid fa-ban text-red-500 text-4xl mb-4"></i>
+            <h3 class="text-xl font-bold text-white mb-2">Último Aviso!</h3>
+            <p class="text-slate-300 text-sm mb-6">Se você sair agora e quiser voltar depois, será o <strong>último da fila</strong>. Tem certeza?</p>
+            <div class="flex gap-3">
+                <button onclick="closeModal('modalFinalWarning')" class="flex-1 py-3 rounded-lg bg-slate-700 text-white hover:bg-slate-600 font-medium">Não, quero ficar</button>
+                <button onclick="confirmSwitchBarber()" class="flex-1 py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-500">Sim, sair da fila</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Login Modal -->
     <div id="loginModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden items-center justify-center z-50 fade-in">
         <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-xs text-center">
@@ -253,14 +307,17 @@
         const QUEUE_COL = 'queue';
         const BARBERS_COL = 'barbers';
         const MASTER_PIN = "9999"; 
+        const LOCAL_STORAGE_KEY = 'bq_my_ticket'; // Local Storage Key for persistence
 
         // State
         let currentUser = null;
         let queueData = [];
         let barbersData = [];
-        let selectedBarber = null; // Object: { id, name, ... }
-        let loggedInMode = null; // 'admin' or 'barber'
+        let selectedBarber = null; 
+        let loggedInMode = null; 
         let loggedInBarberId = null; 
+        let myTicket = null; // Stores { id, barberId, name } if user is in queue
+        let pendingBarberSwitch = null; // Stores target barber ID during confirmation
 
         // Helper Functions for Paths
         function getCollection(colName) {
@@ -286,6 +343,11 @@
         onAuthStateChanged(auth, (user) => {
             currentUser = user;
             if (user) {
+                // Restore local ticket on load
+                const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+                if (stored) {
+                    try { myTicket = JSON.parse(stored); } catch(e) { localStorage.removeItem(LOCAL_STORAGE_KEY); }
+                }
                 startListeners();
             }
         });
@@ -297,10 +359,9 @@
                 const temp = [];
                 snapshot.forEach(doc => temp.push({ id: doc.id, ...doc.data() }));
                 barbersData = temp;
-                renderBarberGrid(); // Update Home Screen
-                if(loggedInMode === 'admin') renderAdminList(); // Update Admin Screen
+                renderBarberGrid(); 
+                if(loggedInMode === 'admin') renderAdminList(); 
                 
-                // If currently selected barber became inactive, go home
                 if (selectedBarber && !loggedInMode) {
                     const freshBarber = barbersData.find(b => b.id === selectedBarber.id);
                     if (!freshBarber || !freshBarber.isActive) {
@@ -319,22 +380,75 @@
                     .filter(item => item.status !== 'done' && item.status !== 'cancelled')
                     .sort((a, b) => a.joinedAt - b.joinedAt);
 
+                checkMyTicketStatus(); // Verify if my ticket is still valid
                 if (selectedBarber) renderQueue();
-                renderBarberGrid(); // <--- CORREÇÃO: Atualiza os cards da home também!
+                renderBarberGrid(); 
             });
+        }
+
+        // --- TICKET VALIDATION ---
+        function checkMyTicketStatus() {
+            if (!myTicket) {
+                document.getElementById('homeActiveTicketNotice').classList.add('hidden');
+                return;
+            }
+
+            // Check if ticket exists in current live data
+            const ticketInDb = queueData.find(q => q.id === myTicket.id);
+            
+            if (!ticketInDb) {
+                // Ticket disappeared (done or cancelled remotely)
+                // Only alert if we aren't the one who just cancelled it
+                if (!pendingBarberSwitch && !loggedInMode) { 
+                    // Optional: Show a notification "Your turn is over or was cancelled"
+                }
+                clearMyTicket();
+            } else {
+                // Ticket exists, update display on Home
+                const barber = barbersData.find(b => b.id === myTicket.barberId);
+                if (barber) {
+                    document.getElementById('homeActiveTicketNotice').classList.remove('hidden');
+                    document.getElementById('homeTicketBarberName').innerText = barber.name;
+                }
+            }
+        }
+
+        function clearMyTicket() {
+            myTicket = null;
+            localStorage.removeItem(LOCAL_STORAGE_KEY);
+            document.getElementById('homeActiveTicketNotice').classList.add('hidden');
+            if (selectedBarber && !loggedInMode) renderQueue(); // Refresh UI to show form again
         }
 
         // --- UI NAVIGATION ---
         window.goHome = () => {
-            if (loggedInMode) return; // Prevent logging out by accident if clicking title
+            if (loggedInMode) return; 
             selectedBarber = null;
             document.getElementById('viewSelection').classList.remove('hidden');
             document.getElementById('viewQueue').classList.add('hidden');
             document.getElementById('viewAdmin').classList.add('hidden');
             document.getElementById('headerContext').innerText = "";
         };
+        
+        window.returnToMyQueue = () => {
+            if (myTicket) {
+                selectBarber(myTicket.barberId);
+            }
+        };
 
         window.selectBarber = (barberId) => {
+            // CHECK LOCK: If user has a ticket for a DIFFERENT barber
+            if (!loggedInMode && myTicket && myTicket.barberId !== barberId) {
+                const currentBarber = barbersData.find(b => b.id === myTicket.barberId);
+                const targetBarber = barbersData.find(b => b.id === barberId);
+                
+                document.getElementById('currentBarberNameModal').innerText = currentBarber ? currentBarber.name : "Outro";
+                
+                pendingBarberSwitch = barberId; // Store intended destination
+                document.getElementById('modalConfirmChange').classList.remove('hidden');
+                return;
+            }
+
             const barber = barbersData.find(b => b.id === barberId);
             if (!barber) return;
 
@@ -342,7 +456,6 @@
             document.getElementById('viewSelection').classList.add('hidden');
             document.getElementById('viewQueue').classList.remove('hidden');
             
-            // Set Titles
             document.getElementById('queueBarberName').innerText = barber.name;
             document.getElementById('displayBarberName').innerText = barber.name;
             document.getElementById('headerContext').innerText = `Vendo: ${barber.name}`;
@@ -350,27 +463,75 @@
             renderQueue();
         };
 
+        // --- MODAL LOGIC FOR SWITCHING ---
+        window.closeModal = (id) => {
+            document.getElementById(id).classList.add('hidden');
+            if (id === 'modalConfirmChange') pendingBarberSwitch = null;
+        };
+
+        window.openFinalWarning = () => {
+            document.getElementById('modalConfirmChange').classList.add('hidden');
+            document.getElementById('modalFinalWarning').classList.remove('hidden');
+        };
+
+        window.confirmSwitchBarber = async () => {
+            document.getElementById('modalFinalWarning').classList.add('hidden');
+            
+            if (myTicket) {
+                // Cancel old ticket
+                await updateStatus(myTicket.id, 'cancelled');
+                clearMyTicket();
+            }
+            
+            // Navigate to new barber
+            if (pendingBarberSwitch) {
+                const targetId = pendingBarberSwitch;
+                pendingBarberSwitch = null;
+                selectBarber(targetId);
+            }
+        };
+        
+        window.confirmExitQueue = async () => {
+            if (confirm("Deseja realmente sair da fila? Você perderá sua posição.")) {
+                 if (myTicket) {
+                    await updateStatus(myTicket.id, 'cancelled');
+                    clearMyTicket();
+                }
+            }
+        };
+
         // --- QUEUE LOGIC ---
         window.addToQueue = async () => {
             const name = document.getElementById('clientName').value.trim();
             if (!name || !selectedBarber) return;
             
+            // Double check lock
+            if (myTicket) { alert("Você já está em uma fila!"); return; }
+
             const btn = document.getElementById('joinBtn');
             btn.disabled = true;
             btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
             try {
-                await addDoc(getCollection(QUEUE_COL), {
+                const docRef = await addDoc(getCollection(QUEUE_COL), {
                     name: name,
                     status: 'waiting',
                     joinedAt: Date.now(),
                     createdBy: currentUser.uid,
-                    barberId: selectedBarber.id // Critical: Link to barber
+                    barberId: selectedBarber.id 
                 });
+                
+                // SAVE TICKET LOCALLY
+                myTicket = { id: docRef.id, barberId: selectedBarber.id, name: name };
+                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(myTicket));
+
                 document.getElementById('clientName').value = '';
                 const msg = document.getElementById('joinMessage');
                 msg.classList.remove('hidden');
                 setTimeout(() => msg.classList.add('hidden'), 3000);
+                
+                renderQueue(); // Update UI immediately
+
             } catch (e) { console.error(e); alert("Erro ao entrar."); }
             finally { 
                 btn.disabled = false; 
@@ -392,7 +553,6 @@
         window.processLogin = () => {
             const pin = document.getElementById('pinInput').value;
             
-            // 1. Check Master Admin
             if (pin === MASTER_PIN) {
                 loggedInMode = 'admin';
                 document.getElementById('viewSelection').classList.add('hidden');
@@ -406,30 +566,23 @@
                 return;
             }
 
-            // 2. Check Barber PIN
             const barber = barbersData.find(b => b.pin === pin);
             if (barber) {
                 loggedInMode = 'barber';
                 loggedInBarberId = barber.id;
-                
-                // Set as selected automatically
                 selectedBarber = barber;
                 
-                // Hide Home, Show Queue
                 document.getElementById('viewSelection').classList.add('hidden');
                 document.getElementById('viewQueue').classList.remove('hidden');
                 document.getElementById('viewAdmin').classList.add('hidden');
-                
-                // Adjust UI for Barber
-                document.getElementById('customerPanel').classList.add('hidden'); // Hide entry form
+                document.getElementById('customerPanel').classList.add('hidden'); 
                 document.getElementById('adminBtn').classList.add('hidden');
                 document.getElementById('logoutBtn').classList.remove('hidden');
                 document.getElementById('headerContext').innerText = `Painel: ${barber.name}`;
-                
                 document.getElementById('displayBarberName').innerText = barber.name + " (Você)";
 
                 closeLoginModal();
-                renderQueue(); // Will trigger visibility of controls
+                renderQueue(); 
                 return;
             }
 
@@ -523,16 +676,20 @@
             }
 
             activeBarbers.forEach(b => {
-                // Calculate queue for this barber for the preview
                 const count = queueData.filter(q => q.barberId === b.id && q.status === 'waiting').length;
                 const time = count * 20;
 
+                // Check if this is the barber I'm queued for to add visual indicator
+                const isMyBarber = myTicket && myTicket.barberId === b.id;
+
                 const card = document.createElement('div');
                 card.onclick = () => selectBarber(b.id);
-                card.className = "bg-slate-800 border border-slate-700 hover:border-amber-500 p-6 rounded-2xl cursor-pointer transition transform hover:scale-105 shadow-lg group";
+                card.className = `bg-slate-800 border ${isMyBarber ? 'border-amber-500 ring-2 ring-amber-500/30' : 'border-slate-700 hover:border-amber-500'} p-6 rounded-2xl cursor-pointer transition transform hover:scale-105 shadow-lg group relative overflow-hidden`;
+                
                 card.innerHTML = `
+                    ${isMyBarber ? '<div class="absolute top-0 right-0 bg-amber-500 text-white text-[10px] uppercase font-bold px-2 py-1 rounded-bl-lg">Sua Fila</div>' : ''}
                     <div class="flex justify-between items-start mb-4">
-                        <div class="bg-slate-700 p-3 rounded-full text-amber-500 group-hover:bg-amber-500 group-hover:text-white transition">
+                        <div class="bg-slate-700 p-3 rounded-full ${isMyBarber ? 'text-amber-500 bg-amber-500/20' : 'text-amber-500 group-hover:bg-amber-500 group-hover:text-white'} transition">
                             <i class="fa-solid fa-user-tie text-2xl"></i>
                         </div>
                         <div class="text-right">
@@ -553,24 +710,38 @@
             const listContainer = document.getElementById('queueList');
             const activeContainer = document.getElementById('activeCutContainer');
             
-            // Filter Queue specifically for this barber
             const myQueue = queueData.filter(item => item.barberId === selectedBarber.id);
             const activeClient = myQueue.find(item => item.status === 'cutting');
             const waitingClients = myQueue.filter(item => item.status === 'waiting');
 
-            // Update Header Stats
             document.getElementById('statWaiting').innerText = waitingClients.length;
             document.getElementById('statWaitingMobile').innerText = waitingClients.length;
             const time = waitingClients.length * 20;
             document.getElementById('statAvgMobile').innerText = time + "m";
             document.getElementById('statAvgDesktop').innerText = time;
 
-            // Render Active Client
+            // --- USER STATUS LOGIC ---
+            // Determine if user is in THIS queue
+            const amInThisQueue = myTicket && myTicket.barberId === selectedBarber.id && waitingClients.some(c => c.id === myTicket.id);
+
+            // Toggle Form vs Status
+            if (!loggedInMode) {
+                if (amInThisQueue) {
+                    document.getElementById('joinFormContainer').classList.add('hidden');
+                    document.getElementById('activeTicketDisplay').classList.remove('hidden');
+                    // Find position
+                    const myPos = waitingClients.findIndex(c => c.id === myTicket.id) + 1;
+                    document.getElementById('myPositionDisplay').innerText = myPos + "º";
+                } else {
+                    document.getElementById('joinFormContainer').classList.remove('hidden');
+                    document.getElementById('activeTicketDisplay').classList.add('hidden');
+                }
+            }
+
             if (activeClient) {
                 activeContainer.classList.remove('hidden');
                 document.getElementById('activeClientName').innerText = activeClient.name;
                 
-                // Show finish button only if logged in as barber OR admin
                 const controls = activeContainer.querySelectorAll('.barber-controls');
                 controls.forEach(c => {
                     if (loggedInMode === 'admin' || (loggedInMode === 'barber' && loggedInBarberId === selectedBarber.id)) {
@@ -580,14 +751,11 @@
                     }
                 });
                 
-                // Attach functions globally for HTML onclick
                 window.finishCut = async () => updateStatus(activeClient.id, 'done');
-
             } else {
                 activeContainer.classList.add('hidden');
             }
 
-            // Render Waiting List
             listContainer.innerHTML = '';
             if (waitingClients.length === 0 && !activeClient) {
                 listContainer.innerHTML = `
@@ -598,19 +766,23 @@
                 `;
             } else {
                 waitingClients.forEach((client, index) => {
+                    // Check if this is ME
+                    const isMe = myTicket && myTicket.id === client.id;
+
                     const card = document.createElement('div');
-                    card.className = `bg-slate-800 border border-slate-700 rounded-xl p-4 mb-3 flex justify-between items-center shadow-sm fade-in status-waiting`;
+                    // Add special class if it is me
+                    card.className = `bg-slate-800 border ${isMe ? 'border-amber-500 status-mine' : 'border-slate-700'} rounded-xl p-4 mb-3 flex justify-between items-center shadow-sm fade-in status-waiting transition-all`;
                     
-                    // Controls visibility logic
                     const showControls = loggedInMode === 'admin' || (loggedInMode === 'barber' && loggedInBarberId === selectedBarber.id);
                     
                     card.innerHTML = `
                         <div class="flex items-center gap-4 flex-1">
-                            <div class="flex items-center justify-center w-10 h-10 rounded-full bg-slate-700 text-slate-400 font-bold">
+                            <div class="flex items-center justify-center w-10 h-10 rounded-full ${isMe ? 'bg-amber-500 text-white shadow-lg' : 'bg-slate-700 text-slate-400'} font-bold relative">
                                 ${index + 1}
+                                ${isMe ? '<div class="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>' : ''}
                             </div>
                             <div>
-                                <h4 class="font-bold text-lg text-white">${client.name}</h4>
+                                <h4 class="font-bold text-lg text-white">${client.name} ${isMe ? '<span class="text-xs bg-amber-500 text-white px-1.5 rounded ml-2">VOCÊ</span>' : ''}</h4>
                                 <span class="text-xs text-slate-500"><i class="fa-regular fa-clock"></i> ${new Date(client.joinedAt).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
                             </div>
                         </div>
