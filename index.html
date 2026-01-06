@@ -57,13 +57,52 @@
                 <i class="fa-solid fa-lock mr-1"></i> Área Restrita
             </button>
             <button onclick="logout()" id="logoutBtn" class="hidden bg-red-600 hover:bg-red-500 text-xs px-3 py-2 rounded-lg transition border border-red-400">
-                <i class="fa-solid fa-right-from-bracket mr-1"></i> Sair
+                <i class="fa-solid fa-right-from-bracket mr-1"></i> <span id="logoutText">Sair</span>
+            </button>
+            <button onclick="logout()" id="clientLogoutBtn" class="bg-slate-700 hover:bg-slate-600 text-xs px-3 py-2 rounded-lg transition border border-slate-600">
+                <i class="fa-solid fa-user-circle mr-1"></i> <span id="userEmail" class="hidden md:inline">Conta</span>
             </button>
         </div>
     </header>
 
     <!-- Main Content Area -->
     <main class="flex-1 relative overflow-hidden flex flex-col">
+
+        <!-- INITIAL LOGIN SCREEN (Must login before using app) -->
+        <div id="initialLoginScreen" class="absolute inset-0 z-50 bg-slate-900 flex items-center justify-center p-6">
+            <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md text-center">
+                <div class="mb-6">
+                    <i class="fa-solid fa-scissors text-amber-500 text-5xl mb-4"></i>
+                    <h1 class="text-3xl font-bold text-white mb-2">Bem-vindo ao <span class="text-amber-500">BarberQueue</span></h1>
+                    <p class="text-slate-400 text-sm">Entre com sua conta para continuar</p>
+                </div>
+                
+                <!-- Login com Google -->
+                <button onclick="clientLoginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 rounded-lg mb-3 flex items-center justify-center gap-3 transition">
+                    <i class="fa-brands fa-google text-xl"></i>
+                    Continuar com Google
+                </button>
+                
+                <!-- Divisor -->
+                <div class="flex items-center gap-3 my-4">
+                    <div class="flex-1 h-px bg-slate-600"></div>
+                    <span class="text-slate-500 text-xs">OU</span>
+                    <div class="flex-1 h-px bg-slate-600"></div>
+                </div>
+                
+                <!-- Login com Email -->
+                <div class="mb-4 space-y-3">
+                    <input type="email" id="clientEmailInput" placeholder="Seu email" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none">
+                    <input type="password" id="clientPasswordInput" placeholder="Sua senha" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none">
+                    <div class="flex gap-2">
+                        <button onclick="clientLoginWithEmail()" class="flex-1 py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500">Entrar</button>
+                        <button onclick="clientRegisterWithEmail()" class="flex-1 py-3 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500">Cadastrar</button>
+                    </div>
+                </div>
+                
+                <p class="text-slate-500 text-xs mt-6">Ao continuar, você concorda com nossos termos de uso</p>
+            </div>
+        </div>
 
         <!-- VIEW 1: SELECTION SCREEN (Home) -->
         <div id="viewSelection" class="absolute inset-0 z-30 bg-slate-900 flex flex-col items-center p-6 py-12 fade-in overflow-y-auto">
@@ -398,8 +437,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithCustomToken, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIG ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
@@ -431,8 +470,7 @@
         // Constants
         const QUEUE_COL = 'queue';
         const BARBERS_COL = 'barbers';
-        const MASTER_PIN = "9999"; 
-        const LOCAL_STORAGE_KEY = 'bq_my_ticket'; // Local Storage Key for persistence
+        const MASTER_PIN = "9999";
 
         // State
         let currentUser = null;
@@ -456,32 +494,74 @@
 
         // --- AUTH ---
         async function initAuth() {
+            // Não fazer login anônimo automaticamente
+            // Usuário DEVE fazer login com Google ou Email
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
                 }
             } catch (error) { 
                 console.error("Auth", error);
-                // DIAGNOSTIC FOR USER: Check for disabled Anonymous auth
-                if (error.code === 'auth/admin-restricted-operation' || error.code === 'auth/operation-not-allowed') {
-                    alert("⚠️ CONFIGURAÇÃO DO FIREBASE NECESSÁRIA:\n\nO Login Anônimo não está ativado no seu Firebase Console.\n\nCOMO RESOLVER:\n1. Vá no Firebase Console > Authentication > Sign-in method\n2. Ative o provedor 'Anonymous' (Anônimo).");
-                }
             }
         }
 
-        onAuthStateChanged(auth, (user) => {
+        onAuthStateChanged(auth, async (user) => {
             currentUser = user;
             if (user) {
-                // Restore local ticket on load
-                const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-                if (stored) {
-                    try { myTicket = JSON.parse(stored); } catch(e) { localStorage.removeItem(LOCAL_STORAGE_KEY); }
-                }
+                // Usuário logado - buscar ticket existente pelo UID
+                await loadUserTicket();
                 startListeners();
+                // Esconder tela de login inicial
+                document.getElementById('initialLoginScreen').classList.add('hidden');
+                // Mostrar botão de conta do cliente
+                const clientBtn = document.getElementById('clientLogoutBtn');
+                if (clientBtn) clientBtn.classList.remove('hidden');
+                // Atualizar email se disponível
+                const emailSpan = document.getElementById('userEmail');
+                if (emailSpan && user.email) {
+                    emailSpan.innerText = user.email.split('@')[0];
+                } else if (emailSpan) {
+                    emailSpan.innerText = 'Conta';
+                }
+            } else {
+                // Sem usuário - mostrar tela de login inicial
+                document.getElementById('initialLoginScreen').classList.remove('hidden');
+                document.getElementById('viewSelection').classList.add('hidden');
+                document.getElementById('viewQueue').classList.add('hidden');
+                document.getElementById('viewAdmin').classList.add('hidden');
+                const clientBtn = document.getElementById('clientLogoutBtn');
+                if (clientBtn) clientBtn.classList.add('hidden');
             }
         });
+
+        // --- TICKET VALIDATION ---
+        async function loadUserTicket() {
+            if (!currentUser) return;
+            
+            // Buscar ticket ativo do usuário pelo UID
+            try {
+                const q = query(
+                    getCollection(QUEUE_COL),
+                    where('userId', '==', currentUser.uid),
+                    where('status', 'in', ['waiting', 'calling', 'cutting'])
+                );
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    const ticketDoc = snapshot.docs[0];
+                    myTicket = {
+                        id: ticketDoc.id,
+                        barberId: ticketDoc.data().barberId,
+                        name: ticketDoc.data().name,
+                        userId: currentUser.uid
+                    };
+                } else {
+                    myTicket = null;
+                }
+            } catch (e) {
+                console.error('Erro ao carregar ticket:', e);
+            }
+        }
 
         // --- DATA LISTENERS ---
         function startListeners() {
@@ -533,6 +613,34 @@
         }
 
         // --- TICKET VALIDATION ---
+        async function loadUserTicket() {
+            if (!currentUser) return;
+            
+            // Buscar ticket ativo do usuário pelo UID
+            try {
+                const q = query(
+                    getCollection(QUEUE_COL),
+                    where('userId', '==', currentUser.uid),
+                    where('status', 'in', ['waiting', 'calling', 'cutting'])
+                );
+                const snapshot = await getDocs(q);
+                
+                if (!snapshot.empty) {
+                    const ticketDoc = snapshot.docs[0];
+                    myTicket = {
+                        id: ticketDoc.id,
+                        barberId: ticketDoc.data().barberId,
+                        name: ticketDoc.data().name,
+                        userId: currentUser.uid
+                    };
+                } else {
+                    myTicket = null;
+                }
+            } catch (e) {
+                console.error('Erro ao carregar ticket:', e);
+            }
+        }
+        
         function checkMyTicketStatus() {
             if (!myTicket) {
                 document.getElementById('homeActiveTicketNotice').classList.add('hidden');
@@ -561,7 +669,6 @@
 
         function clearMyTicket() {
             myTicket = null;
-            localStorage.removeItem(LOCAL_STORAGE_KEY);
             document.getElementById('homeActiveTicketNotice').classList.add('hidden');
             if (selectedBarber && !loggedInMode) renderQueue(); // Refresh UI to show form again
         }
@@ -663,13 +770,17 @@
                     name: name,
                     status: 'waiting',
                     joinedAt: Date.now(),
-                    createdBy: currentUser.uid,
+                    userId: currentUser.uid, // Vincular ao usuário
                     barberId: selectedBarber.id 
                 });
                 
-                // SAVE TICKET LOCALLY
-                myTicket = { id: docRef.id, barberId: selectedBarber.id, name: name };
-                localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(myTicket));
+                // SALVAR TICKET EM MEMÓRIA (não mais no localStorage)
+                myTicket = { 
+                    id: docRef.id, 
+                    barberId: selectedBarber.id, 
+                    name: name,
+                    userId: currentUser.uid
+                };
 
                 document.getElementById('clientName').value = '';
                 const msg = document.getElementById('joinMessage');
@@ -685,7 +796,80 @@
             }
         };
 
-        // --- ADMIN & BARBER LOGIN ---
+        // --- CLIENT LOGIN (Initial Screen) ---
+        window.clientLoginWithGoogle = async () => {
+            const provider = new GoogleAuthProvider();
+            try {
+                await signInWithPopup(auth, provider);
+                // onAuthStateChanged vai lidar com a navegação
+            } catch (error) {
+                console.error('Erro no login com Google:', error);
+                if (error.code === 'auth/popup-closed-by-user') {
+                    alert('Login cancelado.');
+                } else if (error.code === 'auth/operation-not-allowed') {
+                    alert('⚠️ Login com Google não está ativado no Firebase.\n\nVá em Authentication > Sign-in method > Google e ative.');
+                } else {
+                    alert('Erro ao fazer login com Google: ' + error.message);
+                }
+            }
+        };
+        
+        window.clientLoginWithEmail = async () => {
+            const email = document.getElementById('clientEmailInput').value.trim();
+            const password = document.getElementById('clientPasswordInput').value;
+            
+            if (!email || !password) {
+                alert('Preencha email e senha');
+                return;
+            }
+            
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                // onAuthStateChanged vai lidar com a navegação
+            } catch (error) {
+                console.error('Erro no login:', error);
+                if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+                    alert('Email ou senha incorretos.');
+                } else if (error.code === 'auth/invalid-email') {
+                    alert('Email inválido.');
+                } else {
+                    alert('Erro ao fazer login: ' + error.message);
+                }
+            }
+        };
+        
+        window.clientRegisterWithEmail = async () => {
+            const email = document.getElementById('clientEmailInput').value.trim();
+            const password = document.getElementById('clientPasswordInput').value;
+            
+            if (!email || !password) {
+                alert('Preencha email e senha');
+                return;
+            }
+            
+            if (password.length < 6) {
+                alert('A senha deve ter pelo menos 6 caracteres.');
+                return;
+            }
+            
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                // onAuthStateChanged vai lidar com a navegação
+            } catch (error) {
+                console.error('Erro no cadastro:', error);
+                if (error.code === 'auth/email-already-in-use') {
+                    alert('Este email já está cadastrado. Tente fazer login.');
+                } else if (error.code === 'auth/invalid-email') {
+                    alert('Email inválido.');
+                } else if (error.code === 'auth/weak-password') {
+                    alert('Senha muito fraca. Use pelo menos 6 caracteres.');
+                } else {
+                    alert('Erro ao cadastrar: ' + error.message);
+                }
+            }
+        };
+        
+        // --- ADMIN & BARBER LOGIN (Area Restrita) ---
         window.openLoginModal = () => {
             document.getElementById('loginModal').classList.remove('hidden');
             document.getElementById('pinInput').value = '';
@@ -818,16 +1002,29 @@
             alert("PIN Incorreto ou Barbeiro não encontrado.");
         };
 
-        window.logout = () => {
-            loggedInMode = null;
-            loggedInBarberId = null;
-            selectedBarber = null;
-            
-            document.getElementById('adminBtn').classList.remove('hidden');
-            document.getElementById('logoutBtn').classList.add('hidden');
-            document.getElementById('customerPanel').classList.remove('hidden');
-            
-            goHome();
+        window.logout = async () => {
+            if (loggedInMode) {
+                // Logout de barbeiro/admin (não desloga do Firebase)
+                loggedInMode = null;
+                loggedInBarberId = null;
+                selectedBarber = null;
+                
+                document.getElementById('adminBtn').classList.remove('hidden');
+                document.getElementById('logoutBtn').classList.add('hidden');
+                document.getElementById('customerPanel').classList.remove('hidden');
+                
+                goHome();
+            } else {
+                // Logout completo do Firebase (cliente)
+                if (confirm('Deseja sair da sua conta? Você precisará fazer login novamente.')) {
+                    try {
+                        await signOut(auth);
+                        myTicket = null;
+                    } catch (e) {
+                        console.error('Erro ao sair:', e);
+                    }
+                }
+            }
         };
 
         // --- ADMIN FUNCTIONS ---
@@ -1168,7 +1365,6 @@
                 // If this is my ticket, mark it
                 if (myTicket && myTicket.id === id) {
                     myTicket.wasNoShow = true;
-                    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(myTicket));
                 }
             } catch(e) { console.error(e); }
         };
