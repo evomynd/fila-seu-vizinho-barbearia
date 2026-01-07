@@ -394,57 +394,89 @@
         <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border border-slate-700 w-full max-w-md text-center">
             <i class="fa-solid fa-lock text-amber-500 text-3xl mb-4"></i>
             <h3 class="text-xl font-bold text-white mb-2">Acesso Restrito</h3>
-            <p class="text-slate-400 text-sm mb-6">Barbeiros e Administradores</p>
+            <p class="text-slate-400 text-sm mb-6" id="modalSubtitle">Barbeiros e Administradores</p>
             
-            <!-- Aviso de Autenticação -->
-            <div id="barberAuthWarning" class="bg-amber-900/30 border border-amber-600 rounded-lg p-3 mb-4 text-xs text-amber-200 hidden">
-                <i class="fa-solid fa-exclamation-triangle mr-1"></i>
-                <strong>Atenção:</strong> Você precisa estar autenticado no Firebase. Faça login com email/Google primeiro.
-            </div>
-            
-            <!-- Login com Google -->
-            <button onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 rounded-lg mb-3 flex items-center justify-center gap-3 transition">
-                <i class="fa-brands fa-google text-xl"></i>
-                Continuar com Google
-            </button>
-            
-            <!-- Divisor -->
-            <div class="flex items-center gap-3 my-4">
-                <div class="flex-1 h-px bg-slate-600"></div>
-                <span class="text-slate-500 text-xs">OU</span>
-                <div class="flex-1 h-px bg-slate-600"></div>
-            </div>
-            
-            <!-- Login com Email -->
-            <div id="emailLoginForm" class="mb-4 space-y-3">
-                <input type="email" id="emailInput" placeholder="Seu email" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none">
-                <input type="password" id="passwordInput" placeholder="Sua senha" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none">
-                <div class="flex gap-2">
-                    <button onclick="loginWithEmail()" class="flex-1 py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500">Entrar</button>
-                    <button onclick="registerWithEmail()" class="flex-1 py-3 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500">Cadastrar</button>
+            <!-- Seção de Autenticação (esconde quando usuário já está autenticado) -->
+            <div id="authSection">
+                <!-- Aviso de Autenticação -->
+                <div id="barberAuthWarning" class="bg-amber-900/30 border border-amber-600 rounded-lg p-3 mb-4 text-xs text-amber-200 hidden">
+                    <i class="fa-solid fa-exclamation-triangle mr-1"></i>
+                    <strong>Atenção:</strong> Você precisa estar autenticado no Firebase. Faça login com email/Google primeiro.
+                </div>
+                
+                <!-- Login com Google -->
+                <button onclick="loginWithGoogle()" class="w-full bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 rounded-lg mb-3 flex items-center justify-center gap-3 transition">
+                    <i class="fa-brands fa-google text-xl"></i>
+                    Continuar com Google
+                </button>
+                
+                <!-- Divisor -->
+                <div class="flex items-center gap-3 my-4">
+                    <div class="flex-1 h-px bg-slate-600"></div>
+                    <span class="text-slate-500 text-xs">OU</span>
+                    <div class="flex-1 h-px bg-slate-600"></div>
+                </div>
+                
+                <!-- Login com Email -->
+                <div id="emailLoginForm" class="mb-4 space-y-3">
+                    <input type="email" id="emailInput" placeholder="Seu email" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none">
+                    <input type="password" id="passwordInput" placeholder="Sua senha" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white focus:border-amber-500 focus:outline-none">
+                    <div class="flex gap-2">
+                        <button onclick="loginWithEmail()" class="flex-1 py-3 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-500">Entrar</button>
+                        <button onclick="registerWithEmail()" class="flex-1 py-3 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-500">Cadastrar</button>
+                    </div>
+                </div>
+                
+                <!-- Divisor -->
+                <div class="flex items-center gap-3 my-4">
+                    <div class="flex-1 h-px bg-slate-600"></div>
+                    <span class="text-slate-500 text-xs">BARBEIROS</span>
+                    <div class="flex-1 h-px bg-slate-600"></div>
                 </div>
             </div>
             
-            <!-- Divisor -->
-            <div class="flex items-center gap-3 my-4">
-                <div class="flex-1 h-px bg-slate-600"></div>
-                <span class="text-slate-500 text-xs">BARBEIROS</span>
-                <div class="flex-1 h-px bg-slate-600"></div>
+            <!-- Seção do PIN (sempre visível) -->
+            <div id="pinSection">
+                <!-- Indicador de usuário autenticado -->
+                <div id="authenticatedIndicator" class="hidden bg-emerald-900/30 border border-emerald-600 rounded-lg p-3 mb-4 text-xs text-emerald-200">
+                    <i class="fa-solid fa-check-circle mr-1"></i>
+                    <strong>Autenticado:</strong> <span id="authUserEmail"></span>
+                </div>
+                
+                <p class="text-slate-400 text-xs mb-2">Acesso de Barbeiro/Admin (PIN)</p>
+                <input type="password" id="pinInput" placeholder="Digite o PIN" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white text-center text-2xl tracking-widest mb-4 focus:border-amber-500 focus:outline-none">
+                <button onclick="processLogin()" class="w-full py-3 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-500 mb-3">Entrar com PIN</button>
             </div>
             
-            <!-- Login com PIN (para barbeiros) -->
-            <p class="text-slate-400 text-xs mb-2">Acesso de Barbeiro/Admin (PIN)</p>
-            <input type="password" id="pinInput" placeholder="Digite o PIN" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white text-center text-2xl tracking-widest mb-4 focus:border-amber-500 focus:outline-none">
-            <button onclick="processLogin()" class="w-full py-3 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-500 mb-3">Entrar com PIN</button>
-            
             <button onclick="closeLoginModal()" class="w-full py-3 rounded-lg bg-slate-700 text-slate-300 hover:bg-slate-600">Voltar</button>
+        </div>
+    </div>
+
+    <!-- No-Show Alert Modal -->
+    <div id="noShowModal" class="fixed inset-0 bg-black/90 backdrop-blur-sm hidden items-center justify-center z-50 fade-in">
+        <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl border-2 border-red-500 w-full max-w-md text-center animate-pulse">
+            <div class="text-red-500 text-6xl mb-4">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-white mb-3">Você foi Removido da Fila</h3>
+            <p class="text-red-400 text-lg font-bold mb-2">VOCÊ NÃO ESTAVA NO SALÃO</p>
+            <p class="text-slate-300 text-sm mb-6">
+                O barbeiro chamou você, mas você não estava presente no estabelecimento.
+                Por isso, você foi retirado da fila.
+            </p>
+            <p class="text-slate-400 text-xs mb-6">
+                Você pode entrar na fila novamente quando estiver no salão.
+            </p>
+            <button onclick="closeNoShowModal()" class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-4 rounded-xl shadow-lg transition-all transform hover:scale-105">
+                <i class="fa-solid fa-check-circle mr-2"></i> OK, Entendi
+            </button>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, query, where, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIG ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app';
@@ -711,6 +743,15 @@
                 const temp = [];
                 snapshot.forEach(doc => temp.push({ id: doc.id, ...doc.data() }));
                 
+                // Verificar primeiro se o ticket do usuário foi marcado como no-show
+                if (myTicket && !loggedInMode) {
+                    const myTicketInSnapshot = temp.find(t => t.id === myTicket.id);
+                    if (myTicketInSnapshot && myTicketInSnapshot.status === 'no-show') {
+                        showNoShowModal();
+                        clearMyTicket();
+                    }
+                }
+                
                 queueData = temp
                     .filter(item => item.status !== 'done' && item.status !== 'cancelled' && item.status !== 'no-show')
                     .sort((a, b) => a.joinedAt - b.joinedAt);
@@ -731,13 +772,17 @@
             const ticketInDb = queueData.find(q => q.id === myTicket.id);
             
             if (!ticketInDb) {
-                // Ticket disappeared (done or cancelled remotely)
-                // Only alert if we aren't the one who just cancelled it
-                if (!pendingBarberSwitch && !loggedInMode) { 
-                    // Optional: Show a notification "Your turn is over or was cancelled"
-                }
-                clearMyTicket();
+                // Ticket disappeared (done, cancelled, or no-show)
+                // Check if it was marked as no-show
+                checkIfNoShow(myTicket.id);
             } else {
+                // Check if ticket status changed to no-show while we're watching
+                if (ticketInDb.status === 'no-show') {
+                    showNoShowModal();
+                    clearMyTicket();
+                    return;
+                }
+                
                 // Ticket exists, update display on Home
                 const barber = barbersData.find(b => b.id === myTicket.barberId);
                 if (barber) {
@@ -746,6 +791,36 @@
                 }
             }
         }
+        
+        async function checkIfNoShow(ticketId) {
+            // Check in Firestore if the ticket was marked as no-show
+            try {
+                const docRef = getDocRef(QUEUE_COL, ticketId);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    const ticketData = docSnap.data();
+                    if (ticketData.status === 'no-show') {
+                        showNoShowModal();
+                    }
+                }
+            } catch (e) {
+                console.error('Erro ao verificar no-show:', e);
+            }
+            clearMyTicket();
+        }
+        
+        function showNoShowModal() {
+            if (!loggedInMode) { // Só mostrar para clientes
+                document.getElementById('noShowModal').classList.remove('hidden');
+            }
+        }
+        
+        window.closeNoShowModal = () => {
+            document.getElementById('noShowModal').classList.add('hidden');
+            // Permitir que o cliente pegue nova senha
+            clearMyTicket();
+        };
 
         function clearMyTicket() {
             myTicket = null;
@@ -881,10 +956,34 @@
             document.getElementById('loginModal').classList.remove('hidden');
             const pinEl = document.getElementById('pinInput');
             if (pinEl) pinEl.value = '';
+            
+            // Verificar se usuário já está autenticado
+            if (currentUser) {
+                // Esconder seção de autenticação
+                document.getElementById('authSection').classList.add('hidden');
+                // Mostrar indicador de usuário autenticado
+                document.getElementById('authenticatedIndicator').classList.remove('hidden');
+                document.getElementById('authUserEmail').textContent = currentUser.email || 'Usuário autenticado';
+                // Atualizar subtítulo
+                document.getElementById('modalSubtitle').textContent = 'Digite o PIN do barbeiro';
+                // Focar no PIN
+                setTimeout(() => pinEl.focus(), 100);
+            } else {
+                // Mostrar seção de autenticação
+                document.getElementById('authSection').classList.remove('hidden');
+                // Esconder indicador de usuário autenticado
+                document.getElementById('authenticatedIndicator').classList.add('hidden');
+                // Restaurar subtítulo
+                document.getElementById('modalSubtitle').textContent = 'Barbeiros e Administradores';
+            }
         };
 
         window.closeLoginModal = () => {
             document.getElementById('loginModal').classList.add('hidden');
+            // Limpar campos
+            document.getElementById('pinInput').value = '';
+            document.getElementById('emailInput').value = '';
+            document.getElementById('passwordInput').value = '';
         };
         
         // Login com Google
@@ -892,9 +991,14 @@
             const provider = new GoogleAuthProvider();
             try {
                 await signInWithPopup(auth, provider);
-                // Ocultar aviso de autenticação
-                document.getElementById('barberAuthWarning').classList.add('hidden');
-                // NÃO fechar o modal - barbeiro precisa inserir PIN
+                // Esconder seção de autenticação
+                document.getElementById('authSection').classList.add('hidden');
+                // Mostrar indicador de usuário autenticado
+                document.getElementById('authenticatedIndicator').classList.remove('hidden');
+                document.getElementById('authUserEmail').textContent = currentUser?.email || 'Usuário autenticado';
+                // Atualizar subtítulo
+                document.getElementById('modalSubtitle').textContent = 'Digite o PIN do barbeiro';
+                // Alert de sucesso
                 alert('✅ Login realizado com sucesso!\n\nAgora digite o PIN do barbeiro abaixo.');
                 // Focar no campo de PIN
                 document.getElementById('pinInput').focus();
@@ -922,9 +1026,14 @@
             
             try {
                 await signInWithEmailAndPassword(auth, email, password);
-                // Ocultar aviso de autenticação
-                document.getElementById('barberAuthWarning').classList.add('hidden');
-                // NÃO fechar o modal - barbeiro precisa inserir PIN
+                // Esconder seção de autenticação
+                document.getElementById('authSection').classList.add('hidden');
+                // Mostrar indicador de usuário autenticado
+                document.getElementById('authenticatedIndicator').classList.remove('hidden');
+                document.getElementById('authUserEmail').textContent = email;
+                // Atualizar subtítulo
+                document.getElementById('modalSubtitle').textContent = 'Digite o PIN do barbeiro';
+                // Alert de sucesso
                 alert('✅ Login realizado com sucesso!\n\nAgora digite o PIN do barbeiro abaixo.');
                 // Focar no campo de PIN
                 document.getElementById('pinInput').focus();
@@ -959,9 +1068,14 @@
             
             try {
                 await createUserWithEmailAndPassword(auth, email, password);
-                // Ocultar aviso de autenticação
-                document.getElementById('barberAuthWarning').classList.add('hidden');
-                // NÃO fechar o modal - barbeiro precisa inserir PIN
+                // Esconder seção de autenticação
+                document.getElementById('authSection').classList.add('hidden');
+                // Mostrar indicador de usuário autenticado
+                document.getElementById('authenticatedIndicator').classList.remove('hidden');
+                document.getElementById('authUserEmail').textContent = email;
+                // Atualizar subtítulo
+                document.getElementById('modalSubtitle').textContent = 'Digite o PIN do barbeiro';
+                // Alert de sucesso
                 alert('✅ Cadastro realizado com sucesso!\n\nAgora digite o PIN do barbeiro abaixo.');
                 // Focar no campo de PIN
                 document.getElementById('pinInput').focus();
