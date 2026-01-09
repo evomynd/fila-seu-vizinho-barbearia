@@ -1,0 +1,42 @@
+﻿{
+  "name": "BarberQueue - Sistema de Fila para Barbearias",
+  "short_name": "BarberQueue",
+  "description": "Sistema completo de gerenciamento de fila para barbearias com múltiplos barbeiros",
+  "start_url": "./APPBARBER.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "scope": "./",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Entrar na Fila",
+      "short_name": "Fila",
+      "description": "Pegar senha e entrar na fila de atendimento",
+      "url": "./APPBARBER.html"
+    },
+    {
+      "name": "Área Restrita",
+      "short_name": "Admin",
+      "description": "Acesso para barbeiros e administradores",
+      "url": "./APPBARBER.html"
+    }
+  ]
+}
