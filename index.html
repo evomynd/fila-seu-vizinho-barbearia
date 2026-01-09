@@ -665,6 +665,21 @@
             return doc(db, colName, docId);
         }
 
+        // Format elapsed time to show hours and minutes
+        function formatElapsedTime(joinedAtTimestamp) {
+            const now = Date.now();
+            const elapsedMs = now - joinedAtTimestamp;
+            const elapsedMinutes = Math.floor(elapsedMs / 60000);
+            const hours = Math.floor(elapsedMinutes / 60);
+            const minutes = elapsedMinutes % 60;
+            
+            if (hours > 0) {
+                return `${hours}h ${minutes}min`;
+            } else {
+                return `${minutes}min`;
+            }
+        }
+
         // --- AUTH ---
         async function initAuth() {
             // Não fazer login anônimo automaticamente
@@ -1559,7 +1574,7 @@
                             </div>
                             <div>
                                 <h4 class="font-bold text-lg text-white">${client.name} ${isMe ? '<span class="text-xs bg-amber-500 text-white px-1.5 rounded ml-2">VOCÊ</span>' : ''}</h4>
-                                <span class="text-xs text-slate-500"><i class="fa-regular fa-clock"></i> ${new Date(client.joinedAt).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</span>
+                                <span class="text-xs text-slate-500"><i class="fa-regular fa-clock"></i> Há ${formatElapsedTime(client.joinedAt)}</span>
                             </div>
                         </div>
                         ${showControls ? `
@@ -1896,6 +1911,7 @@
     <script>
         // Variável para armazenar o evento de instalação
         let deferredPrompt = null;
+        let installPromptShown = false;
         
         // Registrar Service Worker
         if ('serviceWorker' in navigator) {
@@ -1903,11 +1919,18 @@
                 navigator.serviceWorker.register('service-worker.js')
                     .then(registration => {
                         console.log('✅ Service Worker registrado com sucesso:', registration.scope);
+                        
+                        // Verificar atualizações periodicamente
+                        setInterval(() => {
+                            registration.update();
+                        }, 60000);
                     })
                     .catch(error => {
-                        console.log('❌ Falha ao registrar Service Worker:', error);
+                        console.error('❌ Falha ao registrar Service Worker:', error);
                     });
             });
+        } else {
+            console.warn('⚠️ Service Worker não é suportado neste navegador');
         }
         
         // Capturar evento beforeinstallprompt e mostrar botão
@@ -1917,45 +1940,88 @@
             
             // Armazenar o evento
             deferredPrompt = e;
+            installPromptShown = true;
             
             // Mostrar botão de instalação
             const installBtn = document.getElementById('installBtn');
             if (installBtn) {
                 installBtn.classList.remove('hidden');
-                console.log('🔔 Botão de instalação ativado!');
+                console.log('✅ Evento beforeinstallprompt capturado - Botão de instalação ativado!');
             }
         });
         
         // Função para instalar o app
         window.installPWA = async () => {
             if (deferredPrompt) {
-                // Mostrar prompt de instalação
-                deferredPrompt.prompt();
-                
-                // Aguardar resposta do usuário
-                const { outcome } = await deferredPrompt.userChoice;
-                
-                if (outcome === 'accepted') {
-                    console.log('✅ Usuário aceitou instalar o app!');
-                    // Esconder botão após instalação
-                    const installBtn = document.getElementById('installBtn');
-                    if (installBtn) {
-                        installBtn.classList.add('hidden');
+                try {
+                    // Mostrar prompt de instalação
+                    deferredPrompt.prompt();
+                    
+                    // Aguardar resposta do usuário
+                    const { outcome } = await deferredPrompt.userChoice;
+                    
+                    if (outcome === 'accepted') {
+                        console.log('✅ Usuário aceitou instalar o app!');
+                        // Esconder botão após instalação
+                        const installBtn = document.getElementById('installBtn');
+                        if (installBtn) {
+                            installBtn.classList.add('hidden');
+                        }
+                    } else {
+                        console.log('❌ Usuário recusou instalar o app');
                     }
-                } else {
-                    console.log('❌ Usuário recusou instalar o app');
+                    
+                    // Limpar o evento
+                    deferredPrompt = null;
+                } catch (error) {
+                    console.error('Erro ao instalar PWA:', error);
                 }
-                
-                // Limpar o evento
-                deferredPrompt = null;
             } else {
                 // Se o evento não estiver disponível, informar ao usuário
-                alert('Para instalar este app:\\n\\n' +
-                      '1. Abra o menu do seu navegador\\n' +
-                      '2. Procure por "Adicionar à tela inicial" ou "Instalar app"\\n' +
-                      '3. Confirme a instalação');
+                showInstallGuide();
             }
         };
+        
+        // Função para mostrar guia de instalação manual
+        function showInstallGuide() {
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const isAndroid = /Android/.test(navigator.userAgent);
+            const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+            const isEdge = /Edg/.test(navigator.userAgent);
+            const isFirefox = /Firefox/.test(navigator.userAgent);
+            
+            let guideText = 'Para instalar este app:\n\n';
+            
+            if (isIOS) {
+                guideText += '📱 iPhone/iPad:\n' +
+                    '1. Abra Safari\n' +
+                    '2. Clique no ícone de compartilhamento (caixa com seta)\n' +
+                    '3. Selecione "Adicionar à tela inicial"\n' +
+                    '4. Nomeie e clique em "Adicionar"';
+            } else if (isAndroid && isChrome) {
+                guideText += '🤖 Chrome Android:\n' +
+                    '1. Abra o menu (⋮) no canto superior direito\n' +
+                    '2. Selecione "Instalar app" ou "Adicionar à tela inicial"\n' +
+                    '3. Confirme a instalação';
+            } else if (isAndroid && isEdge) {
+                guideText += '🤖 Edge Android:\n' +
+                    '1. Abra o menu (⋮) no canto inferior direito\n' +
+                    '2. Selecione "Instalar app"\n' +
+                    '3. Confirme a instalação';
+            } else if (isAndroid && isFirefox) {
+                guideText += '🤖 Firefox Android:\n' +
+                    '1. Abra o menu (⋮) no canto superior direito\n' +
+                    '2. Selecione "Instalar"\n' +
+                    '3. Confirme a instalação';
+            } else {
+                guideText += '💻 Navegador Desktop:\n' +
+                    '1. Abra o menu do navegador\n' +
+                    '2. Procure por "Instalar app" ou "Adicionar à tela de início"\n' +
+                    '3. Confirme a instalação';
+            }
+            
+            alert(guideText);
+        }
         
         // Ouvir quando o app foi instalado
         window.addEventListener('appinstalled', () => {
@@ -1967,6 +2033,29 @@
             }
             deferredPrompt = null;
         });
+        
+        // Diagnosticar problemas de PWA após 5 segundos
+        setTimeout(() => {
+            if (!installPromptShown && deferredPrompt === null) {
+                console.warn('⚠️ beforeinstallprompt não foi disparado. Possíveis causas:');
+                console.warn('  - Sem HTTPS (PWA requer HTTPS, exceto em localhost)');
+                console.warn('  - manifest.json não está acessível');
+                console.warn('  - Service Worker não registrou corretamente');
+                console.warn('  - Navegador não suporta PWA');
+                console.warn('  - App já está instalado');
+                
+                // Verificar se o manifest pode ser acessado
+                fetch('manifest.json')
+                    .then(r => {
+                        if (r.ok) {
+                            console.log('✅ manifest.json está acessível');
+                        } else {
+                            console.error('❌ manifest.json retornou status:', r.status);
+                        }
+                    })
+                    .catch(e => console.error('❌ Erro ao acessar manifest.json:', e));
+            }
+        }, 5000);
     </script>
 </body>
 </html>
