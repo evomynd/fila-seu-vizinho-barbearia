@@ -1,8 +1,13 @@
 // Service Worker para BarberQueue PWA
-const CACHE_NAME = 'barberqueue-v1.0.0';
+const CACHE_NAME = 'barberqueue-v1.0.2';
 const urlsToCache = [
-  './APPBARBER.html',
-  './manifest.json',
+  '/fila-barbearia/index.html',
+  '/fila-barbearia/manifest.json',
+  '/fila-barbearia/icon-180.png',
+  '/fila-barbearia/icon-192.png',
+  '/fila-barbearia/icon-192.svg',
+  '/fila-barbearia/icon-512.png',
+  '/fila-barbearia/icon-512.svg',
   'https://cdn.tailwindcss.com',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
   'https://cdn.jsdelivr.net/npm/chart.js',
@@ -76,7 +81,7 @@ self.addEventListener('fetch', event => {
           
           // Se não houver no cache, retornar uma resposta padrão
           if (event.request.mode === 'navigate') {
-            return caches.match('./APPBARBER.html');
+            return caches.match('/fila-barbearia/index.html');
           }
         });
       })
